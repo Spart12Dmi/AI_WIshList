@@ -256,6 +256,13 @@ class StoreDiscoveryAgent:
         results, errors, seen = [], [], set()
         store_limit = min(settings.store_limit, 8) if quick else settings.store_limit
         queries = queries[:3 if quick else 5]
+        # A site operator is useful but not universally honoured by search
+        # engines.  If those scoped queries miss the local index, make one
+        # language/market-hint recovery query.  It keeps the user's complete
+        # request and does not contain a category or product lookup table.
+        regional_recovery = f"{original} {region.search_hint} {region.shopping_terms}".strip()
+        if regional_recovery not in queries:
+            queries.append(regional_recovery)
         stores = []
         for query_index, query in enumerate(queries):
             try:

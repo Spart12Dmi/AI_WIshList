@@ -199,3 +199,20 @@ def test_regional_discovery_retries_when_provider_ignores_region(client, monkeyp
     stores, _ = agents.StoreDiscoveryAgent().run("whisky", get_region("czechia"), "whiskey")
     assert [store["domain"] for store in stores] == ["merchant.cz"]
     assert "site:.cz" in calls[1]
+
+
+def test_regional_discovery_uses_language_hint_after_scoped_queries_miss(client, monkeypatch):
+    calls = []
+
+    def search(args):
+        calls.append(args["query"])
+        if "Czech Republic" in args["query"]:
+            return [{"url": "https://merchant.cz/console", "title": "PlayStation 5 Pro", "snippet": "koupit"}]
+        return []
+
+    monkeypatch.setattr(agents, "search_web", SimpleNamespace(invoke=search))
+    stores, _ = agents.StoreDiscoveryAgent().run(
+        "PlayStation 5 Pro", get_region("czechia"), "PlayStation 5 Pro"
+    )
+    assert [store["domain"] for store in stores] == ["merchant.cz"]
+    assert any("Czech Republic" in query for query in calls)
