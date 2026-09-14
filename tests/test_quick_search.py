@@ -27,11 +27,12 @@ def test_quick_discovery_uses_one_query_and_eight_stores(client, monkeypatch):
     assert get_settings().store_limit == 15
 
 
-def test_quick_skips_planner_but_keeps_validation(client, monkeypatch):
+def test_quick_uses_same_planner_and_keeps_validation(client, monkeypatch):
+    calls = []
     monkeypatch.setattr(
         agents.QueryPlannerAgent,
         "run",
-        lambda *args: pytest.fail("Quick search must not wait for a planner model call"),
+        lambda *args: (calls.append(args) or "Sony WH-1000XM5", []),
     )
     monkeypatch.setattr(
         agents.StoreDiscoveryAgent,
@@ -68,6 +69,7 @@ def test_quick_skips_planner_but_keeps_validation(client, monkeypatch):
     )
     final = next(e["payload"] for e in events if e["event"] == "complete")
     assert [p["title"] for p in final["products"]] == ["Sony WH-1000XM5"]
+    assert len(calls) == 1
 
 
 def test_search_mode_is_validated():

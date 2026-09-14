@@ -2,6 +2,7 @@ const $ = (selector) => document.querySelector(selector);
 let user = null, registration = false, lists = [], currentList = null, searchController = null;
 let products = new Map(), storeStates = new Map(), toastTimer;
 let searchTimer, searchStarted = 0;
+let savedProducts = new Set(), savingProducts = new Set();
 const categories = [
   {id:'headphones',name:'Audio & headphones',ideas:['Sony WH-1000XM5','Bose QuietComfort','JBL Tune 760NC']},
   {id:'coffee',name:'Coffee corner',ideas:['Baratza Encore','DeLonghi Dedica','Sage Bambino']},
@@ -51,6 +52,7 @@ function renderResults(){
   $('#result-count').textContent=visible.length===products.size?String(products.size):`${visible.length} / ${products.size}`;
   if(!visible.length&&products.size)empty($('#results'),'No products match these filters.','Raise your budget, choose another currency, or turn off the photo filter.');
   else if(!visible.length&&searchController)showSkeletons();
+  else if(!visible.length)empty($('#results'),'Find something worth saving.','Search for a product, compare offers, then save it to your selected wishlist.');
 }
 for(const id of ['result-sort','filter-currency','filter-photos'])$(`#${id}`).addEventListener('change',renderResults);
 $('#filter-budget').addEventListener('input',renderResults);
@@ -108,7 +110,8 @@ function empty(where, title, description) { where.replaceChildren(); const box=e
 
 function card(product, item = null) {
   const node = el('article','product-card'); node.dataset.productId = product.id || '';
-  node.append(photo(product));
+  if(product.id){const open=button('','product-photo',()=>showProduct(product.id,product.region||item?.region||$('#region').value));open.setAttribute('aria-label',`Compare offers for ${product.title}`);open.append(photo(product));node.append(open);}
+  else node.append(photo(product));
   const copy = el('div','product-copy'), heading = el('h3');
   heading.append(button(product.title,'title-button', () => product.id ? showProduct(product.id, product.region || $('#region').value) : searchFor(product.title, item?.region)));
   copy.append(heading, el('p','price', minimum(product)), el('p','offer-count',product.offer_count ? `${product.offer_count} store offer${product.offer_count===1?'':'s'} · compare prices` : 'Saved idea · ready to discover'));
@@ -121,7 +124,11 @@ function card(product, item = null) {
   }
   const actions=el('div','actions');
   actions.append(button(product.id ? 'Compare ↗' : 'Find offers ↗','quiet',()=> product.id ? showProduct(product.id,product.region || item?.region) : searchFor(product.title,item?.region)));
-  if (!item) actions.append(button('+ Save','save-button',()=>saveProduct(product)));
+  if (!item) {
+    const saved=savedProducts.has(product.id),pending=savingProducts.has(`${$('#save-list').value}:${product.id}`);
+    const save=button(saved?'Saved ✓':pending?'Saving…':'+ Save','save-button',()=>quickSave(product));
+    save.disabled=saved||pending;actions.append(save);
+  }
   else actions.append(button('Remove','quiet',async()=>{await api(`/api/wishlists/${currentList}/items/${item.id}`,{method:'DELETE'}); await loadLists(currentList); toast('Removed from wishlist');}));
   if (item) actions.append(button('Edit','quiet',()=>editItem(item)));
   copy.append(actions);node.append(copy);return node;
@@ -153,14 +160,45 @@ async function saveProduct(product) {
   lists = await api('/api/wishlists');
   if(!lists.length){const list=await api('/api/wishlists',{method:'POST',body:JSON.stringify({name:'My wishlist'})});lists=[list];}
   openEditor('Keep this one.',[
-    {name:'list',label:'Wishlist',options:lists.map(l=>({value:l.id,label:l.name}))},
+    {name:'list',label:'Wishlist',value:$('#save-list').value||lists[0].id,options:lists.map(l=>({value:l.id,label:l.name}))},
     {name:'notes',label:'A note for later',max:2000},
     {name:'target_price',label:'Target price (optional)',type:'number'},
     {name:'target_currency',label:'Target currency',value:Object.keys(product.minimum_prices||{})[0]||'CZK',options:['CZK','EUR','USD','GBP','PLN'].map(c=>({value:c,label:c}))}
   ],async(data)=>{
     await api(`/api/wishlists/${data.list}/items`,{method:'POST',body:JSON.stringify({product_id:product.id,notes:data.notes,region:product.region||$('#region').value,target_price:data.target_price||null,target_currency:data.target_price?data.target_currency:null})});
     toast('Added to your wishlist');
+    currentList=Number(data.list);
+    await refreshSaveLists(data.list);
   });
+}
+
+async function refreshSaveLists(preferred) {
+  lists=await api('/api/wishlists');
+  const select=$('#save-list'),selected=String(preferred||select.value||currentList||lists[0]?.id||'');
+  select.replaceChildren(...lists.map(list=>new Option(list.name,String(list.id))));
+  select.value=lists.some(list=>String(list.id)===selected)?selected:String(lists[0]?.id||'');
+  select.disabled=!lists.length;
+  await refreshSavedProducts();
+}
+async function refreshSavedProducts() {
+  const selected=$('#save-list').value;
+  savedProducts=new Set();renderResults();
+  if(!selected)return;
+  const list=await api(`/api/wishlists/${selected}`);
+  if($('#save-list').value!==selected)return;
+  savedProducts=new Set(list.items.map(item=>item.product?.id||item.product_id).filter(Boolean));renderResults();
+}
+$('#save-list').onchange=()=>refreshSavedProducts().catch(error=>toast(error.message));
+async function quickSave(product) {
+  const listId=$('#save-list').value, name=$('#save-list').selectedOptions[0]?.textContent;
+  if(!listId){$('#search-create-list').click();return;}
+  const key=`${listId}:${product.id}`;if(savingProducts.has(key))return;
+  savingProducts.add(key);renderResults();
+  try {
+    const result=await api(`/api/wishlists/${listId}/items`,{method:'POST',body:JSON.stringify({product_id:product.id,region:product.region||$('#region').value})});
+    if($('#save-list').value===listId)savedProducts.add(product.id);
+    toast(result.already_saved?`Already in ${name}`:`Saved to ${name}`);
+  } finally {savingProducts.delete(key);renderResults();}
 }
 
 async function showProduct(id, region='global') {
@@ -180,7 +218,7 @@ async function showProduct(id, region='global') {
     const source=safeURL(offer.source_url);if(source&&source!==url){const link=el('a','fine','Price source');link.href=source;link.target='_blank';link.rel='noopener noreferrer';left.append(link);}
     row.append(left,right);root.append(row);
   }
-  root.append(el('p','fine','Offers are grouped by a product identifier or an exact normalized title. Compare model, size and colour before buying.'));
+  root.append(el('p','fine','Matching product identifiers or normalized names group store offers. Age and equivalent units are normalized; different sizes and variants stay separate. Check model, size and colour before buying.'));
   if(!$('#product-dialog').open) $('#product-dialog').showModal();
 }
 $('#close-product').onclick=()=>$('#product-dialog').close();
@@ -188,6 +226,7 @@ $('#close-product').onclick=()=>$('#product-dialog').close();
 async function loadLists(preferred) {
   lists=await api('/api/wishlists'); currentList=Number(preferred)||currentList||lists[0]?.id;
   if(!lists.some(l=>l.id===currentList))currentList=lists[0]?.id;
+  await refreshSaveLists(preferred);
   $('#list-tabs').replaceChildren();
   for(const list of lists) $('#list-tabs').append(button(`${list.name} (${list.item_count})`,list.id===currentList?'selected':'',()=>loadLists(list.id)));
   $('#list-actions').replaceChildren();$('#wishlist-items').replaceChildren();
@@ -207,6 +246,7 @@ function editItem(item){openEditor('Make a note.',[
   {name:'target_currency',label:'Target currency',value:item.target_currency||'CZK',options:['CZK','EUR','USD','GBP','PLN'].map(c=>({value:c,label:c}))}
 ],async(data)=>{await api(`/api/wishlists/${currentList}/items/${item.id}`,{method:'PATCH',body:JSON.stringify({notes:data.notes,target_price:data.target_price||null,target_currency:data.target_price?data.target_currency:null})});await loadLists(currentList);});}
 $('#create-list').onclick=()=>openEditor('A new collection.',[{name:'name',label:'Wishlist name',required:true,max:80}],async(data)=>{const list=await api('/api/wishlists',{method:'POST',body:JSON.stringify(data)});await loadLists(list.id);});
+$('#search-create-list').onclick=()=>$('#create-list').onclick();
 
 async function showTab(tab){
   if(!user)return;
@@ -224,6 +264,7 @@ document.querySelectorAll('[data-tab]').forEach(n=>n.onclick=()=>showTab(n.datas
 function drawStores(){ $('#stores-list').replaceChildren(); for(const [domain,state] of storeStates)$('#stores-list').append(el('span','',`${domain} · ${state}`)); }
 function warning(message){if([...$('#warnings').children].some(n=>n.textContent===message))return;$('#warnings').append(el('p','',message));}
 function streamEvent(name,payload){
+  if(name==='queries')$('#query-variants').replaceChildren(el('span','','Search phrases (tried as needed)'),...payload.queries.map(query=>el('span','',query)));
   if(name==='product_removed'){
     products.delete(payload.product_id);
     renderResults();
@@ -261,7 +302,7 @@ async function searchFor(query, selectedRegion){await showTab('discover');$('#qu
 $('#search-form').onsubmit=async(event)=>{
   event.preventDefault();if(searchController)return;
   const query=$('#query').value.trim();if(query.length<2)return;
-  products=new Map();storeStates=new Map();$('#results').replaceChildren();$('#warnings').replaceChildren();$('#pipeline').replaceChildren();$('#sources').replaceChildren();$('#stores-list').replaceChildren();
+  products=new Map();storeStates=new Map();$('#results').replaceChildren();$('#warnings').replaceChildren();$('#pipeline').replaceChildren();$('#query-variants').replaceChildren();$('#sources').replaceChildren();$('#stores-list').replaceChildren();
   $('#search-details').hidden=false;$('#status').textContent='Starting search…';$('#result-count').textContent='Searching';
   $('#search-button').disabled=true;$('#cancel-search').hidden=false;
   searchController=new AbortController();
@@ -280,7 +321,8 @@ $('#region').onchange=()=>{try{localStorage.setItem('wishwise-region',$('#region
 
 async function signedIn(){
   $('#auth-view').hidden=true;$('#workspace').hidden=false;$('#nav').hidden=false;$('#account').hidden=false;$('#username').textContent=user.name;
-  await showTab('discover');
+  savedProducts=new Set();savingProducts=new Set();$('#save-list').replaceChildren();currentList=null;
+  await refreshSaveLists();await showTab('discover');
 }
 $('#auth-toggle').onclick=()=>{registration=!registration;$('#name-field').hidden=!registration;$('#auth-name').required=registration;$('#auth-title').textContent=registration?'Make it yours.':'Welcome back.';$('#auth-intro').textContent=registration?'Create your personal collection.':'Sign in to pick up where you left off.';$('#auth-submit').textContent=registration?'Create account':'Sign in';$('#auth-toggle').textContent=registration?'Already have an account? Sign in':'New here? Create an account';$('#auth-password').autocomplete=registration?'new-password':'current-password';$('#auth-error').textContent='';};
 $('#auth-form').onsubmit=async(event)=>{event.preventDefault();$('#auth-submit').disabled=true;$('#auth-error').textContent='';try{user=await api('/api/auth/'+(registration?'register':'login'),{method:'POST',body:JSON.stringify({email:$('#auth-email').value,password:$('#auth-password').value,...(registration?{name:$('#auth-name').value}:{})})});$('#auth-password').value='';await signedIn();}catch(error){$('#auth-error').textContent=error.message;}finally{$('#auth-submit').disabled=false;}};

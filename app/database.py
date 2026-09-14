@@ -68,3 +68,18 @@ def initialize():
         for column in ("brand", "mpn", "color", "size", "gtin"):
             if column not in columns:
                 db.execute(f"ALTER TABLE offers ADD COLUMN {column} TEXT")
+        db.executescript("""
+            CREATE TABLE IF NOT EXISTS product_keys (
+                identity_key TEXT PRIMARY KEY,
+                product_id TEXT NOT NULL REFERENCES products(id)
+            );
+            CREATE TABLE IF NOT EXISTS product_members (
+                product_id TEXT PRIMARY KEY REFERENCES products(id),
+                identity_key TEXT NOT NULL REFERENCES product_keys(identity_key)
+            );
+            CREATE INDEX IF NOT EXISTS product_member_key ON product_members(identity_key);
+        """)
+        # Add aliases rather than rewriting saved product IDs or deleting duplicate notes.
+        from app.catalog import index_legacy_products
+
+        index_legacy_products(db)

@@ -99,12 +99,17 @@ def add(list_id: int, data: ItemInput, user=Depends(current_user)):
     product = product_detail(data.product_id) if data.product_id else None
     if data.product_id and not product:
         raise HTTPException(404, "Product not found")
+    if product:
+        data.product_id = product["id"]
     with connection() as db:
         owned(db, list_id, user["id"])
         if data.product_id:
             existing = db.execute(
-                "SELECT id FROM wishlist_items WHERE wishlist_id=? AND product_id=?",
-                (list_id, data.product_id),
+                """SELECT i.id FROM wishlist_items i WHERE i.wishlist_id=? AND
+                (i.product_id=? OR i.product_id IN (
+                    SELECT m.product_id FROM product_members m WHERE m.identity_key=(
+                        SELECT identity_key FROM product_members WHERE product_id=?)))""",
+                (list_id, data.product_id, data.product_id),
             ).fetchone()
             if existing:
                 return {"id": existing["id"], "already_saved": True}

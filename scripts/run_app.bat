@@ -26,7 +26,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo Starting Wishwise at http://127.0.0.1:8000
+echo Starting Wantnote at http://127.0.0.1:8000
 echo Press Ctrl+C to stop the server.
 call conda run --no-capture-output --name local-product-search python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 set "APP_EXIT_CODE=%ERRORLEVEL%"
@@ -35,5 +35,5 @@ exit /b %APP_EXIT_CODE%
 
 :show_help
 echo Usage: %~nx0
-echo Starts Wishwise at http://127.0.0.1:8000
+echo Starts Wantnote at http://127.0.0.1:8000
 exit /b 0

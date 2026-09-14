@@ -4,10 +4,10 @@ import hashlib
 import json
 import re
 import time
-import unicodedata
 from decimal import Decimal
 
 from app.database import connection
+from app.matching import words
 from app.schemas import ProductOffer
 
 
@@ -34,10 +34,15 @@ def identity(offer):
             **variant,
         }
         return "mpn:" + json.dumps(values, sort_keys=True, ensure_ascii=False)
-    # Conservative exact normalized title matching preserves model, size and colour.
-    title = unicodedata.normalize("NFKC", offer["title"]).casefold()
+    # Normalize age, equivalent units and word order, not model/size/strength.
+    title = offer["title"].casefold()
     title = re.sub(r"\s*[|]\s*.*$", "", title)
-    title = " ".join(re.findall(r"\w+", title))
+    title = re.sub(r"\b(\d+)\s*(?:y\s*\.?\s*o\.?|years?\s+old|yo|let|y)\b", r"\1", title)
+    tokens = words(title)
+    # Descriptive merchandising boilerplate should not split an otherwise
+    # identical item. Product/category words are never removed here.
+    tokens -= {"new", "original", "product", "item", "online", "buy", "shop", "store"}
+    title = " ".join(sorted(tokens))
     return (
         "title:"
         + title
@@ -79,12 +84,17 @@ def save_offer(raw, region):
                         offer[field] = existing[field]
             if region == "global" and existing["currency"] == offer["currency"]:
                 observed_region = existing["region"]
+        mapped = db.execute("SELECT product_id FROM product_keys WHERE identity_key=?", (key,)).fetchone()
+        if mapped:
+            pid = mapped["product_id"]
         db.execute(
             "INSERT OR IGNORE INTO products VALUES(?,?,?,?)", (pid, offer["title"], offer["image_url"], key)
         )
         db.execute(
             "UPDATE products SET image_url=COALESCE(image_url,?) WHERE id=?", (offer["image_url"], pid)
         )
+        db.execute("INSERT OR IGNORE INTO product_keys VALUES(?,?)", (key, pid))
+        db.execute("INSERT OR IGNORE INTO product_members VALUES(?,?)", (pid, key))
         db.execute(
             """INSERT INTO offers(url,product_id,title,shop,price,currency,region,image_url,availability,checked_at,source_url)
             VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(url) DO UPDATE SET
@@ -124,12 +134,33 @@ def save_offer(raw, region):
     return product_detail(pid, region)
 
 
+def index_legacy_products(db):
+    """Index old product records without deleting records, offers or saved-list metadata."""
+    rows = db.execute("""SELECT p.* FROM products p LEFT JOIN product_members m ON m.product_id=p.id
+                         WHERE m.product_id IS NULL ORDER BY p.id""").fetchall()
+    for row in rows:
+        key = row["identity_key"]
+        if key.startswith("title:"):
+            variant = json.loads(key.split("|variant:", 1)[1]) if "|variant:" in key else {}
+            key = identity({"title": row["title"], **variant})
+        db.execute("INSERT OR IGNORE INTO product_keys VALUES(?,?)", (key, row["id"]))
+        db.execute("INSERT OR IGNORE INTO product_members VALUES(?,?)", (row["id"], key))
+
+
 def product_detail(pid, region=None):
     with connection() as db:
+        group = db.execute("""SELECT k.identity_key,k.product_id FROM product_members m
+                              JOIN product_keys k ON k.identity_key=m.identity_key WHERE m.product_id=?""",
+                           (pid,)).fetchone()
+        if group:
+            pid = group["product_id"]
         product = db.execute("SELECT id,title,image_url FROM products WHERE id=?", (pid,)).fetchone()
         if not product:
             return None
-        sql, args = "SELECT * FROM offers WHERE product_id=?", [pid]
+        if group:
+            sql, args = "SELECT * FROM offers WHERE product_id IN (SELECT product_id FROM product_members WHERE identity_key=?)", [group["identity_key"]]
+        else:
+            sql, args = "SELECT * FROM offers WHERE product_id=?", [pid]
         if region and region != "global":
             sql += " AND region=?"
             args.append(region)

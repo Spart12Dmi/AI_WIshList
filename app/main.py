@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import threading
 from contextlib import asynccontextmanager
@@ -6,7 +7,7 @@ from urllib.parse import urlsplit
 
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.auth import current_user
@@ -31,7 +32,7 @@ async def lifespan(app):
     yield
 
 
-app = FastAPI(title="Wishwise · Local AI wishlist", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="Wantnote · Local AI wishlist", version="0.2.0", lifespan=lifespan)
 app.include_router(auth_router)
 app.include_router(wishlist_router)
 app.mount("/static", StaticFiles(directory=STATIC_ROOT), name="static")
@@ -49,14 +50,25 @@ async def security_headers(request, call_next):
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; img-src 'self' https: http: data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'"
     )
-    if request.url.path.startswith("/api/"):
+    if request.url.path.startswith("/api/") or request.url.path == "/":
         response.headers["Cache-Control"] = "no-store"
+    elif request.url.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-cache"
     return response
 
 
 @app.get("/", include_in_schema=False)
-def home():
-    return FileResponse(STATIC_ROOT / "index.html")
+def home(request: Request):
+    if "refresh" in request.query_params:
+        # One-time migration for browsers holding an older, cacheable home page.
+        # Only clear HTTP cache: retain session cookies, preferences and account data.
+        return RedirectResponse("/", status_code=303, headers={"Clear-Site-Data": '"cache"'})
+    html = (STATIC_ROOT / "index.html").read_text(encoding="utf-8")
+    # Content-based URLs also change when assets are edited without a server restart.
+    for name in ("styles.css", "discover.css", "app.js"):
+        version = hashlib.sha256((STATIC_ROOT / name).read_bytes()).hexdigest()[:16]
+        html = html.replace(f'"/static/{name}"', f'"/static/{name}?v={version}"')
+    return HTMLResponse(html)
 
 
 @app.get("/api/regions")

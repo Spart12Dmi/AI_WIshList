@@ -1,4 +1,4 @@
-# Wishwise — local AI product discovery & wishlists
+# Wantnote — local AI product discovery & wishlists
 
 A local-first web application: accounts, regional product search, comparison of
 merchant offers, and private wishlists. Product cards arrive progressively after
@@ -99,14 +99,16 @@ Historical prices are not re-emitted as new search results; pages must be fetche
 again. Saved observations older than 24 hours remain visible but do not determine
 the current minimum. Prices are decimal strings in storage, numeric in API output.
 
-Ollama JSON-schema output generates `QueryPlan` and single-candidate `ProductMatch`
-decisions. The model does not generate/copy source URLs or decide prices/regions.
+Ollama JSON-schema output generates a `QueryPlan`, one independent `RewriteReview`
+per proposed phrase, and single-candidate `ProductMatch` decisions. The model does
+not generate/copy source URLs or decide prices/regions.
 Pydantic checks types, extra fields and finite numeric prices. Additional gates
 reject invented numeric query constraints, accessories instead of main products,
 generic pages, regional mismatches and missing original-query identity/variant terms. Failures
 produce explicit warnings and a deterministic fallback. The LLM never invents
-prices or executes SQL. Category aliases supplement the model; they are not a
-claim that lexical matching understands every product category.
+prices or executes SQL. Product/category translations are proposed and reviewed
+by the local model; deterministic matching only checks the original request and
+those approved variants.
 
 Search discovery URLs (not prices) are cached in memory for five minutes, scoped
 by query, region and provider settings. Product pages are still fetched on every
@@ -132,14 +134,40 @@ queries, region selection, streamed progress and elapsed time. Categories collap
 after starting a search and can be reopened with **Explore categories**. Illustrations
 are local SVGs, not fictitious merchant offers or external image dependencies.
 
-The UI defaults to **Quick search**: exact query (no planner LLM round trip), one
-discovery query, at most eight stores, two candidate pages per store and two
-browser-fallback candidates. **More stores** retains the existing deeper workflow.
+Both search modes use the same category-independent local LLM planner and a separate
+structured rewrite-review call. No product-specific query substitution table is used.
+The planner proposes localized synonyms, quotes identity anchors from the request,
+and keeps the original query. Code rejects changed model/numeric literals; the review
+rejects added/dropped attributes, changed product types and ambiguous-intent narrowing.
+Approved phrases reach discovery, catalogue links, browser extraction and final matching,
+instead of being discarded by a later literal-only check. If planning/review fails,
+the app reports the fallback and uses only the literal request plus shopping terms.
+
+The UI defaults to **Quick search** with up to three discovery queries. Approved rewrites
+get a retry even when the literal query found only broad catalogues. Quick mode searches
+at most eight stores, two seed pages per store and two browser-fallback candidates.
+If seeds yield no matching candidates, a store-catalogue search can examine up to
+two additional pages, within the same extraction time budget.
+**More stores** increases discovery and extraction budgets, not reasoning capabilities.
+Planned phrases appear under search progress.
+Brand, model, size and other original constraints still gate every returned offer.
+The LLM can still miss translations or misjudge meaning. This is a general-purpose
+workflow, not a guarantee of correct results for every query or access to every shop.
 Both modes use the same price, semantic, region and product validation. Quick mode
 trades coverage for less work; it cannot guarantee a fixed internet response time.
 The 60-second quick extraction budget is a scheduling budget, not a hard wall-clock
 deadline for already-running network/browser calls. API clients may pass
 `search_mode: "quick"`; their backward-compatible default is `"thorough"`.
+
+The **Save products to** selector chooses a destination wishlist for one-click
+card saving. Product photos and titles open the multi-store comparison. The detailed
+save dialog still supports notes and target prices. Repeated saves are idempotent.
+
+Equivalent title spellings, word order, age notation and volume units are normalized
+for grouping. Manufacturer identifiers take priority; conflicting identifiers, sizes,
+volumes, strengths and gift-set titles remain separate. Missing variant information
+is not guessed. Existing account data and saved items are not deleted or bulk-rewritten;
+new searches use the updated grouping when offers are refreshed.
 
 Result filters work immediately on products already found: photo presence,
 currency, price limit and sorting. A price limit requires a currency; cross-currency
