@@ -110,6 +110,13 @@ prices or executes SQL. Product/category translations are proposed and reviewed
 by the local model; deterministic matching only checks the original request and
 those approved variants.
 
+Every search also exposes a privacy-safe planner diagnostic: whether the local
+model or direct fallback ran, how many candidate rewrites were reviewed, and how
+many were approved or rejected. It contains counts only (never prompts, model
+reasons, account data or source URLs), and is available as the `planner` SSE event
+and `planner_diagnostics` field in the JSON response. This makes a zero-result
+search debuggable without treating model output as trusted evidence.
+
 Search discovery URLs (not prices) are cached in memory for five minutes, scoped
 by query, region and provider settings. Product pages are still fetched on every
 search. Set `SEARCH_CACHE_TTL_SECONDS=0` to disable this. Relevant historical RAG
