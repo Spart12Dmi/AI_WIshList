@@ -148,3 +148,13 @@ class ProductMatch(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     relevant: bool
     reason: str = Field(min_length=1, max_length=240)
+    canonical_product: str | None = Field(
+        default=None,
+        min_length=2,
+        max_length=300,
+        description=(
+            "Canonical product identity for cross-store grouping. Remove seller boilerplate and cosmetic "
+            "colour/condition wording, but preserve model, edition, capacity, size, strength and pack details. "
+            "Return null when uncertain."
+        ),
+    )

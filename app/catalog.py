@@ -7,13 +7,8 @@ import time
 from decimal import Decimal
 
 from app.database import connection
-from app.matching import SHOPPING_WORDS, words
+from app.matching import words
 from app.schemas import ProductOffer
-
-_MEASUREMENT_WORDS = {
-    "mm", "cm", "m", "in", "inch", "inches", "palec", "palce", "palcu",
-    "g", "kg", "ml", "cl", "l", "gb", "tb", "yo", "y", "years", "year",
-}
 
 
 def is_available(value):
@@ -23,44 +18,74 @@ def is_available(value):
     return name not in {"outofstock", "discontinued", "soldout"}
 
 
-def _specific_model_query(query):
-    """Return true for a concrete model search, not a broad category request.
+def _canonical_key(offer, query=None):
+    """Validate an LLM grouping label before allowing it to affect storage."""
+    value = offer.get("canonical_product")
+    if not isinstance(value, str) or not 2 <= len(value.strip()) <= 300:
+        return None
+    if re.search(r"(?:https?://|www\.|[\r\n])", value, re.I):
+        return None
+    # Small local models occasionally punctuate a model number (``1:7``).
+    # Joining digits around a separator is category-independent and keeps the
+    # numeric safety check from discarding an otherwise useful identity.
+    value = re.sub(r"(?<=\d)[:/](?=\d)", "", value)
+    canonical = words(value)
+    if len(canonical) < 2:
+        return None
+    reference = words(offer.get("title", "")) | words(query or "")
+    # A canonical label must be grounded in the observed title or request;
+    # this blocks generic labels such as "phone" and prompt-injected text.
+    if not canonical & reference:
+        return None
+    # Never let a rewrite merge capacities, model numbers or other numeric
+    # constraints that the current request explicitly contains.
+    requested_numbers = {token for token in words(query or "") if any(char.isdigit() for char in token)}
+    if not requested_numbers.issubset(canonical):
+        return None
+    return "canonical:" + " ".join(sorted(canonical))
 
-    A query-aware family key is useful for searches such as ``iPhone 17 Pro``:
-    colour and storage are offer dimensions, so they should compare together.
-    Broad requests such as ``wireless headphones`` must still produce separate
-    products. Digits/model codes provide a category-independent specificity
-    signal; no brand or product vocabulary is embedded here.
+
+def _canonical_tokens(key):
+    return set(key.removeprefix("canonical:").split()) if key.startswith("canonical:") else set()
+
+
+def _similar_canonical_product(db, key, offer):
+    """Find a nearby reviewed identity when colour/wording differs by shop.
+
+    Canonical labels are model output, so exact equality is too brittle. A
+    conservative overlap check is universal: it requires at least two shared
+    normalized identity tokens and identical numeric tokens from the observed
+    titles. This groups cosmetic wording differences without merging capacities,
+    model numbers or unrelated short labels.
     """
-    if not query:
-        return False
-    requested = words(query) - SHOPPING_WORDS
-    if len(requested) < 2:
-        return False
-    raw_tokens = re.findall(r"[^\W_]+", str(query).casefold())
-    model_number = False
-    for index, token in enumerate(raw_tokens):
-        if not any(char.isdigit() for char in token):
+    current = _canonical_tokens(key)
+    if len(current) < 3:
+        return None
+    current_numbers = {token for token in words(offer.get("title", "")) if any(char.isdigit() for char in token)}
+    rows = db.execute(
+        "SELECT k.identity_key,k.product_id,p.title FROM product_keys k JOIN products p ON p.id=k.product_id "
+        "WHERE k.identity_key LIKE 'canonical:%'"
+    ).fetchall()
+    best = None
+    best_score = 0.0
+    for row in rows:
+        candidate = _canonical_tokens(row["identity_key"])
+        if len(candidate) < 3:
             continue
-        # A standalone dimension/age/weight is a search constraint, not a
-        # model identity (``15 inch laptop`` must not become one product).
-        neighbors = set(raw_tokens[max(0, index - 1):index] + raw_tokens[index + 1:index + 2])
-        if token.isdigit() and neighbors & _MEASUREMENT_WORDS:
+        candidate_numbers = {token for token in words(row["title"]) if any(char.isdigit() for char in token)}
+        if current_numbers != candidate_numbers:
             continue
-        if re.fullmatch(r"\d+(?:mm|cm|m|in|inch|inches|g|kg|ml|cl|l|gb|tb)", token):
-            continue
-        model_number = True
-        break
-    return model_number
+        shared = len(current & candidate)
+        score = shared / min(len(current), len(candidate))
+        if shared >= 2 and score >= (2 / 3) and score > best_score:
+            best, best_score = row, score
+    return best
 
 
 def identity(offer, query=None):
-    if _specific_model_query(query):
-        requested = words(query) - SHOPPING_WORDS
-        # The graph has already applied original/approved-variant matching.
-        # Store only the normalized request in this key, so title-only variant
-        # details (colour, condition, storage) become comparable offers.
-        return "family:" + " ".join(sorted(requested))
+    canonical = _canonical_key(offer, query)
+    if canonical:
+        return canonical
     gtin = offer.get("gtin")
     if gtin and re.fullmatch(r"\d{8}|\d{12,14}", str(gtin)):
         return "gtin:" + str(gtin)
@@ -93,7 +118,12 @@ def identity(offer, query=None):
 
 
 def save_offer(raw, region, query=None):
-    offer = ProductOffer.model_validate(raw).model_dump()
+    # ``canonical_product`` is a reviewed, in-memory grouping hint. It is not
+    # a merchant field and therefore is intentionally not persisted in offers.
+    canonical_product = raw.get("canonical_product") if isinstance(raw, dict) else None
+    payload = {key: value for key, value in raw.items() if key != "canonical_product"}
+    offer = ProductOffer.model_validate(payload).model_dump()
+    offer["canonical_product"] = canonical_product
     if not offer["currency"]:
         raise ValueError("An explicit currency is required to compare offers")
     key = identity(offer, query)
@@ -129,6 +159,11 @@ def save_offer(raw, region, query=None):
         mapped = db.execute("SELECT product_id FROM product_keys WHERE identity_key=?", (key,)).fetchone()
         if mapped:
             pid = mapped["product_id"]
+        elif key.startswith("canonical:"):
+            similar = _similar_canonical_product(db, key, offer)
+            if similar:
+                key = similar["identity_key"]
+                pid = similar["product_id"]
         db.execute(
             "INSERT OR IGNORE INTO products VALUES(?,?,?,?)", (pid, offer["title"], offer["image_url"], key)
         )

@@ -288,6 +288,9 @@ def search_and_validate(state):
                     if not accepted:
                         audit(offer, "semantic_or_region_rejection")
                         continue
+                    # The original request is only used to protect explicit
+                    # numeric constraints while validating the model's
+                    # canonical grouping label; it is not a category rule.
                     product = save_offer(accepted[0], state["region"], query=state["query"])
                     # A richer/corrected observation may reassign a URL to a
                     # new identity. Remove it from earlier streamed cards too.
