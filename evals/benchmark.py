@@ -15,7 +15,7 @@ from itertools import product
 from pathlib import Path
 
 import httpx
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.agents import SemanticValidationAgent
 from app.config import get_settings
@@ -47,6 +47,10 @@ class Case(BaseModel):
     currency: str = "CZK"
     price: float | None = 1500.0
     availability: str | None = "InStock"
+    # Optional output captured from an independent planner/reviewer run. The
+    # deterministic benchmark leaves this empty; translated fixtures can
+    # provide a reviewed phrase without putting a synonym table in app code.
+    variants: list[str] = Field(default_factory=list, max_length=4)
 
     def offer(self):
         return {
@@ -83,7 +87,9 @@ def decision(case, assessment=None):
         offer["currency"]
         and is_individual_product_url(offer["url"])
         and available(offer)
-        and SemanticValidationAgent().accepts(offer, case.query, get_region(case.region), assessment)
+        and SemanticValidationAgent().accepts(
+            offer, case.query, get_region(case.region), assessment, case.variants
+        )
     )
 
 
@@ -131,7 +137,9 @@ def run(cases, models, repeat=1):
                 started = time.monotonic()
                 row = {**case.model_dump(), "predicted": None, "raw_relevant": None, "repeat": repetition}
                 try:
-                    assessment = agent.assess([case.offer()], case.query, get_region(case.region), model)[
+                    assessment = agent.assess(
+                        [case.offer()], case.query, get_region(case.region), model, case.variants
+                    )[
                         case.offer()["url"]
                     ]
                     row.update(

@@ -8,6 +8,7 @@ from app import agents, graph
 from app.catalog import product_detail, save_offer
 from app.config import get_settings
 from app.matching import query_evidence
+from app.query_expansion import matches_query
 from app.regions import get_region
 from app.schemas import ProductMatch
 from app.tools import web_search
@@ -31,15 +32,23 @@ from app.tools.web_search import parse_product_offers
         ("Logitech G502", "Logitech G305 mouse", False),
         ("Logitech G502", "Logitech G502 HERO herní myš", True),
         ("Sony headphones", "JBL wireless headphones", False),
-        ("Sony headphones", "Bezdrátová sluchátka Sony WH-1000XM5", True),
-        ("headphones", "Bezdrátová sluchátka Sony WH-1000XM5", True),
-        ("coffee grinder", "Elektrický mlýnek na kávu Baratza Encore", True),
+        ("Sony headphones", "Bezdrátová sluchátka Sony WH-1000XM5", False),
+        ("headphones", "Bezdrátová sluchátka Sony WH-1000XM5", False),
+        ("coffee grinder", "Elektrický mlýnek na kávu Baratza Encore", False),
         ("coffee grinder", "Coffee mug 350ml", False),
-        ("whiskey", "Johnnie Walker Blue Label 1l", True),
+        ("whiskey", "Johnnie Walker Blue Label 1l", False),
     ],
 )
 def test_original_query_constraints(query, title, expected):
     assert query_evidence(query, title) is expected
+
+
+def test_reviewed_llm_variant_enables_a_translation_without_static_aliases():
+    assert matches_query(
+        "Sony headphones",
+        "Bezdrátová sluchátka Sony WH-1000XM5",
+        ["Bezdrátová sluchátka Sony"],
+    )
 
 
 def test_positive_llm_cannot_override_brand_mismatch(client, monkeypatch):

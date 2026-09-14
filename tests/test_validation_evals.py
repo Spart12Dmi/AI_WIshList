@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from app import agents
 from app.config import get_settings
 from app.matching import lexical_match, query_evidence
+from app.query_expansion import matches_query
 from app.regions import get_region
 from app.schemas import OfferAssessment, OfferAssessments, ProductOffer
 from app.tools import web_search
@@ -18,10 +19,10 @@ from app.tools import web_search
     "query,title,expected",
     [
         ("whiskey", "Sierra Tequila Blanco 1l 35%", False),
-        ("whiskey", "GOLD WELL whisky 51.5% 0.5L", True),
-        ("whiskey", "Johnnie Walker Blue Label 1 l", True),
-        ("whisky", "Blanton's Original Bourbon 0.7L", True),
-        ("headphones", "Bezdrátová sluchátka Sony", True),
+        ("whiskey", "GOLD WELL whisky 51.5% 0.5L", False),
+        ("whiskey", "Johnnie Walker Blue Label 1 l", False),
+        ("whisky", "Blanton's Original Bourbon 0.7L", False),
+        ("headphones", "Bezdrátová sluchátka Sony", False),
         ("headphones", "Logitech keyboard", False),
         ("Logitech G502", "Logitech G305 mouse", False),
     ],
@@ -32,6 +33,10 @@ def test_category_and_model_evidence(query, title, expected):
 
 def test_offline_matching_does_not_accept_unrelated_brand():
     assert not lexical_match("Logitech", "Sierra Tequila Blanco")
+
+
+def test_reviewed_variant_is_the_only_translation_path():
+    assert matches_query("whiskey", "GOLD WELL whisky 51.5% 0.5L", ["whisky"])
 
 
 @pytest.mark.parametrize(

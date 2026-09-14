@@ -16,8 +16,9 @@ from ddgs import DDGS
 from langchain_core.tools import tool
 
 from app.config import get_settings
-from app.matching import SHOPPING_WORDS, query_evidence, words
+from app.matching import SHOPPING_WORDS, words
 from app.network import tls_context
+from app.query_expansion import matches_query
 from app.regions import REGIONS
 from app.urls import canonical_offer_url
 
@@ -144,22 +145,35 @@ def search_web(query: str, max_results: int = 12, region: str = "wt-wt") -> list
 
 @tool("search_store_catalog")
 def search_store_catalog(
-    domain: str, query: str, region: str = "wt-wt", max_results: int = 3
+    domain: str, query: str, region: str = "wt-wt", max_results: int = 3,
+    queries: list[str] | None = None,
 ) -> list[dict[str, str]]:
     """Find individual product pages for a query inside one store domain using a site-restricted web search."""
     clean_domain = domain.lower().strip().removeprefix("www.")
     if not re.fullmatch(r"(?:[a-z0-9-]+\.)+[a-z]{2,63}", clean_domain):
         raise ValueError("A valid public store domain is required.")
-    results = _run_web_search(f"site:{clean_domain} {query}", max_results, region)
-    results = [
-        result
-        for result in results
-        if (urlsplit(result["url"]).hostname or "").lower() == clean_domain
-        or (urlsplit(result["url"]).hostname or "").lower().endswith("." + clean_domain)
-    ]
-    for result in results:
-        result["store_domain"] = clean_domain
-    return results
+    results, seen = [], set()
+    failures = []
+    for phrase in list(dict.fromkeys([query, *(queries or [])]))[:4]:
+        try:
+            found = _run_web_search(f"site:{clean_domain} {phrase}", max_results, region)
+        except Exception as error:
+            failures.append(error)
+            continue
+        for result in found:
+            host = (urlsplit(result["url"]).hostname or "").lower()
+            if host != clean_domain and not host.endswith("." + clean_domain):
+                continue
+            if not matches_query(query, result.get("title", "") + " " + result.get("snippet", ""), queries):
+                continue
+            if result["url"] not in seen:
+                seen.add(result["url"])
+                results.append({**result, "store_domain": clean_domain})
+        if len(results) >= max_results:
+            break
+    if not results and failures:
+        log.info("Store query retries encountered %s provider failures", len(failures))
+    return results[:max_results]
 
 
 def _meta_content(soup: BeautifulSoup, *names: str) -> str | None:
@@ -518,15 +532,15 @@ def _owned_property(scope, selector, allowed_nested_types=frozenset()):
 
 
 @tool("extract_offers")
-def extract_offers(url: str, discovered_title: str = "", query: str = "") -> list[dict[str, Any]]:
+def extract_offers(url: str, discovered_title: str = "", query: str = "", queries: list[str] | None = None) -> list[dict[str, Any]]:
     """Fetch explicit product offers, including separately linked category items."""
     html, final_url = _fetch_product_html(url)
     offers = parse_product_offers(html, final_url, discovered_title)
-    if offers and (not query or any(query_evidence(query, item["title"]) for item in offers)):
+    if offers and (not query or any(matches_query(query, item["title"], queries) for item in offers)):
         return offers
     # Search engines frequently return categories. Follow only bounded, explicit
     # product-card links, one level deep, and read each product's own metadata.
-    for candidate in parse_catalog_links(html, final_url, query):
+    for candidate in parse_catalog_links(html, final_url, query, queries):
         try:
             item_html, item_url = _fetch_product_html(candidate["url"])
             offers.extend(parse_product_offers(item_html, item_url, candidate["title"]))
@@ -535,7 +549,7 @@ def extract_offers(url: str, discovered_title: str = "", query: str = "") -> lis
     return offers
 
 
-def parse_catalog_links(html: str, page_url: str, query: str = "") -> list[dict[str, str]]:
+def parse_catalog_links(html: str, page_url: str, query: str = "", queries: list[str] | None = None) -> list[dict[str, str]]:
     soup = BeautifulSoup(html, "lxml")
     links, seen = [], {page_url}
     selectors = (
@@ -550,7 +564,7 @@ def parse_catalog_links(html: str, page_url: str, query: str = "") -> list[dict[
         if re.search(r"(?:cart|basket|checkout|wishlist|login|add-to|remove)[/?=\-]", target, re.I):
             continue
         title = anchor.get_text(" ", strip=True) or str(anchor.get("title") or "")
-        if len(title) < 2 or (query and not query_evidence(query, title)) or not is_public_http_url(target):
+        if len(title) < 2 or (query and not matches_query(query, title, queries)) or not is_public_http_url(target):
             continue
         links.append({"url": target, "title": title[:500]})
         seen.add(target)

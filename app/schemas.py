@@ -110,7 +110,23 @@ class QueryPlan(BaseModel):
         max_length=300,
         description="A concise web query intended to find product pages with live prices.",
     )
+    alternatives: list[str] = Field(min_length=1, max_length=3,
+                                    description="One to three equivalent search rewrites. Include a translation into the requested market language when useful.")
+    anchors: list[str] = Field(default_factory=list, max_length=12,
+                              description="Brands and model identifiers ONLY, quoted exactly from the request. Never include generic product types or descriptions; they must remain translatable.")
 
+
+class RewriteReview(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    index: int = Field(ge=0, le=3, description="The zero-based rewrite index being reviewed.")
+    brands_and_models: list[str] = Field(default_factory=list, max_length=12,
+        description="Only brand names and model identifiers quoted from the ORIGINAL request, not product types or descriptions.")
+    added_constraints: list[str] = Field(default_factory=list, max_length=12,
+        description="Attributes present in the rewrite but absent from the original request. Empty means none.")
+    dropped_constraints: list[str] = Field(default_factory=list, max_length=12,
+        description="Attributes required by the original but missing from the rewrite. Empty means none.")
+    preserves_intent: bool
+    reason: str = Field(min_length=1, max_length=160)
 
 class OfferAssessment(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)

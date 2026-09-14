@@ -5,7 +5,7 @@ from langchain_core.tools import tool
 from playwright.sync_api import Browser, Page, Route, sync_playwright
 
 from app.config import get_settings
-from app.matching import query_evidence
+from app.query_expansion import matches_query
 from app.tools.web_search import is_public_http_url, parse_catalog_links, parse_product_offers
 
 
@@ -18,7 +18,7 @@ def _allow_only_public_requests(route: Route) -> None:
         route.abort()
 
 
-def _load_product_page(browser: Browser, url: str, discovered_title: str, query: str = "") -> dict[str, Any]:
+def _load_product_page(browser: Browser, url: str, discovered_title: str, query: str = "", queries=()) -> dict[str, Any]:
     settings = get_settings()
     if not is_public_http_url(url):
         return {"accepted": False, "reason": "The candidate URL is not public."}
@@ -32,8 +32,8 @@ def _load_product_page(browser: Browser, url: str, discovered_title: str, query:
             return {"accepted": False, "reason": "The page redirected to a non-public address."}
         html = page.content()
         offers = parse_product_offers(html, final_url, discovered_title)
-        if not offers or (query and not any(query_evidence(query, item["title"]) for item in offers)):
-            for candidate in parse_catalog_links(html, final_url, query):
+        if not offers or (query and not any(matches_query(query, item["title"], queries) for item in offers)):
+            for candidate in parse_catalog_links(html, final_url, query, queries):
                 try:
                     page.goto(
                         candidate["url"],
@@ -61,7 +61,7 @@ def iter_browser_product_extractions(candidates: list[dict[str, str]]) -> Iterat
             for candidate in candidates[: settings.browser_candidate_limit]:
                 try:
                     result = _load_product_page(
-                        browser, candidate["url"], candidate.get("title", ""), candidate.get("query", "")
+                        browser, candidate["url"], candidate.get("title", ""), candidate.get("query", ""), candidate.get("queries", ())
                     )
                     if result.get("offers"):
                         yield from result["offers"]

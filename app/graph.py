@@ -16,6 +16,7 @@ from app.agents import QueryPlannerAgent, SemanticValidationAgent, StoreDiscover
 from app.catalog import product_detail, save_offer
 from app.config import get_settings
 from app.matching import is_individual_product_url, query_evidence
+from app.query_expansion import matches_query
 from app.regions import get_region
 from app.retrieval import OfferRetriever
 from app.schemas import ProductOffer
@@ -33,6 +34,7 @@ class ProductSearchState(TypedDict, total=False):
     max_results: int
     search_mode: str
     planned_query: str
+    query_variants: list[str]
     context: str
     sources: list[dict]
     stores: list[dict]
@@ -68,24 +70,21 @@ def retrieve_context(state):
 
 
 def plan_query(state):
-    if state.get("search_mode") == "quick":
-        emit("status", message="Quick search: finding stores for your exact query...")
-        return {
-            "planned_query": state["query"],
-            "warnings": [],
-            "pipeline": state["pipeline"] + ["Direct query · quick search"],
-        }
     emit("status", message="Planning search for your region...")
     with _llm_slot:
         if state.get("control") and state["control"].is_set():
             return {"planned_query": state["query"], "warnings": ["Search cancelled."]}
-        query, warnings = QueryPlannerAgent().run(
+        planner = QueryPlannerAgent()
+        query, warnings = planner.run(
             state["query"], get_region(state["region"]), state["context"]
         )
     query = re.sub(r"\bsite:\S+", "", query)[:300]
+    variants = getattr(planner, "variants", [state["query"]])
+    emit("queries", queries=variants)
     emit("status", message=f"Search query: {query}")
     return {
         "planned_query": query,
+        "query_variants": variants,
         "warnings": warnings,
         "pipeline": state["pipeline"] + ["Structured query planning"],
     }
@@ -96,8 +95,7 @@ def discover_stores(state):
         return {"stores": [], "warnings": state.get("warnings", [])}
     emit("status", message="Finding stores in the selected market...")
     discovery_args = [state["planned_query"], get_region(state["region"]), state["query"]]
-    if state.get("search_mode") == "quick":
-        discovery_args.append(True)
+    discovery_args.extend([state.get("search_mode") == "quick", state.get("query_variants")])
     stores, warnings = StoreDiscoveryAgent().run(*discovery_args)
     known = {}
     for source in state["sources"]:
@@ -140,19 +138,22 @@ def search_and_validate(state):
     budget_lock = threading.Lock()
     warnings = list(state["warnings"])
     products = {}
+    variants = state.get("query_variants", [])
 
     def audit(candidate, outcome):
         if state.get("evaluation_trace"):
             emit("evaluation", candidate=candidate, outcome=outcome)
 
-    def candidate_pages(store):
+    def candidate_pages(store, progress):
         seen_pages = set()
         for page in store.get("pages", []):
             if page["url"] not in seen_pages:
                 seen_pages.add(page["url"])
                 yield page
             if len(seen_pages) >= page_limit:
-                return
+                break
+        if progress["matched"]:
+            return
         if stop.is_set() or time.monotonic() > deadline:
             return
         pages = search_store_catalog.invoke(
@@ -161,30 +162,34 @@ def search_and_validate(state):
                 "query": state["query"],
                 "region": region.search_region,
                 "max_results": page_limit,
+                "queries": state.get("query_variants", [state["query"]])[:3 if quick else 4],
             }
         )
-        pages.sort(key=lambda page: not query_evidence(state["query"], page.get("title", "")))
+        pages.sort(key=lambda page: not matches_query(state["query"], page.get("title", ""), variants))
+        catalogue_count = 0
         for page in pages:
             if page["url"] not in seen_pages:
                 seen_pages.add(page["url"])
+                catalogue_count += 1
                 yield page
-            if len(seen_pages) >= page_limit:
+            if catalogue_count >= page_limit:
                 return
 
     def worker(store):
         nonlocal browser_budget
         domain = store["domain"]
         extracted = 0
+        progress = {"matched": 0}
         try:
             if stop.is_set():
                 return
             events.put(("store", {"domain": domain, "status": "searching"}))
-            for page in candidate_pages(store):
+            for page in candidate_pages(store, progress):
                 if stop.is_set() or time.monotonic() > deadline:
                     break
                 try:
                     offers = extract_offers.invoke(
-                        {"url": page["url"], "discovered_title": page["title"], "query": state["query"]}
+                        {"url": page["url"], "discovered_title": page["title"], "query": state["query"], "queries": variants}
                     )
                 except Exception as exc:
                     log.info("HTTP extraction failed for %s: %s", domain, type(exc).__name__)
@@ -192,7 +197,7 @@ def search_and_validate(state):
                 use_browser = False
                 with budget_lock:
                     if (
-                        not any(query_evidence(state["query"], item.get("title", "")) for item in offers)
+                        not any(matches_query(state["query"], item.get("title", ""), variants) for item in offers)
                         and settings.use_browser_fallback
                         and browser_budget > 0
                     ):
@@ -205,7 +210,7 @@ def search_and_validate(state):
                                 offers = [
                                     p
                                     for p in iter_browser_product_extractions(
-                                        [{**page, "query": state["query"]}]
+                                        [{**page, "query": state["query"], "queries": variants}]
                                     )
                                     if p.get("accepted")
                                 ]
@@ -220,6 +225,8 @@ def search_and_validate(state):
                                 )
                 for offer in offers:
                     if not stop.is_set():
+                        if matches_query(state["query"], offer.get("title", ""), variants):
+                            progress["matched"] += 1
                         events.put(("candidate", offer))
                         extracted += 1
             events.put(
@@ -264,14 +271,14 @@ def search_and_validate(state):
                     if not is_individual_product_url(offer["url"]):
                         audit(offer, "homepage_instead_of_product_url")
                         continue
-                    if query_evidence(state["query"], offer["title"]) is False:
+                    if not matches_query(state["query"], offer["title"], variants):
                         audit(offer, "query_mismatch")
                         warnings.append(
                             "Some candidates were excluded because their category or model did not match the query."
                         )
                         continue
                     with _llm_slot:
-                        accepted, notes = SemanticValidationAgent().run([offer], state["query"], region)
+                        accepted, notes = SemanticValidationAgent().run([offer], state["query"], region, variants)
                     warnings.extend(note for note in notes if note not in warnings)
                     if not accepted:
                         audit(offer, "semantic_or_region_rejection")
@@ -294,7 +301,7 @@ def search_and_validate(state):
                     # observation may replace a category observation, independent
                     # of worker arrival order, but not the other way around.
                     seen[offer["url"]] = quality
-                    if not query_evidence(state["query"], product["title"]) or not product["minimum_prices"]:
+                    if not matches_query(state["query"], product["title"], variants) or not product["minimum_prices"]:
                         audit(offer, "no_available_minimum_or_identity_mismatch")
                         if product["id"] in products:
                             del products[product["id"]]

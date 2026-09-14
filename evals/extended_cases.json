@@ -164,6 +164,7 @@
     },
     {
       "id": "drink-pack-equal",
+      "variants": ["Coca Cola 6x330ml"],
       "split": "challenge",
       "query": "Coca Cola 6x330ml",
       "title": "Coca-Cola 6 × 330 ml",
@@ -194,6 +195,7 @@
     },
     {
       "id": "cream-translation",
+      "variants": ["Nivea krém 200ml"],
       "split": "challenge",
       "query": "Nivea cream 200ml",
       "title": "Nivea krém 200 ml",
@@ -214,6 +216,7 @@
     },
     {
       "id": "cleanser-translation",
+      "variants": ["CeraVe čisticí gel 473ml"],
       "split": "challenge",
       "query": "CeraVe cleanser 473ml",
       "title": "CeraVe čisticí gel 473 ml",
@@ -264,6 +267,7 @@
     },
     {
       "id": "shoes-colour",
+      "variants": ["adidas Samba černé"],
       "split": "challenge",
       "query": "Adidas Samba black",
       "title": "adidas Samba černé",
@@ -274,6 +278,7 @@
     },
     {
       "id": "drill-translation",
+      "variants": ["Bosch akumulátorová vrtačka"],
       "split": "challenge",
       "query": "Bosch drill",
       "title": "Bosch akumulátorová vrtačka GSR 12V-15",
@@ -294,6 +299,7 @@
     },
     {
       "id": "drill-bit-requested",
+      "variants": ["Bosch vrtáky do betonu"],
       "split": "challenge",
       "query": "Bosch drill bits",
       "title": "Bosch vrtáky do betonu",
@@ -324,6 +330,7 @@
     },
     {
       "id": "laptop-translation",
+      "variants": ["Notebook Lenovo"],
       "split": "challenge",
       "query": "Lenovo laptop",
       "title": "Notebook Lenovo IdeaPad Slim 3",
@@ -374,6 +381,7 @@
     },
     {
       "id": "cable-length",
+      "variants": ["USB-C kabel 200 cm"],
       "split": "challenge",
       "query": "USB C cable 2m",
       "title": "USB-C kabel 200 cm",
@@ -394,6 +402,7 @@
     },
     {
       "id": "tv-translation",
+      "variants": ["Samsung televize 55 palců"],
       "split": "challenge",
       "query": "Samsung TV 55 inch",
       "title": "Samsung televize 55 palců",

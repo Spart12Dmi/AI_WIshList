@@ -1,0 +1,13 @@
+{
+  "description": "Hand-authored semantic rewrite fixtures across unrelated categories, not production lookup rules or an unseen holdout.",
+  "cases": [
+    {"query":"Braun electric toothbrush","anchors":["Braun"],"rewrite":"Braun elektrický zubní kartáček","wrong":"Oral-B elektrický zubní kartáček"},
+    {"query":"Anker portable charger 20000mAh","anchors":["Anker"],"rewrite":"Anker powerbanka 20000mAh","wrong":"Anker powerbanka 10000mAh"},
+    {"query":"Bosch cordless drill GSB 18V","anchors":["Bosch","GSB","18V"],"rewrite":"Bosch akumulátorová vrtačka GSB 18V","wrong":"Bosch akumulátorová vrtačka GSR 18V"},
+    {"query":"Philips air purifier","anchors":["Philips"],"rewrite":"Philips čistička vzduchu","wrong":"Philips zvlhčovač vzduchu"},
+    {"query":"Fiskars pruning shears","anchors":["Fiskars"],"rewrite":"Fiskars zahradní nůžky","wrong":"Fiskars kuchyňské nůžky"},
+    {"query":"Ortlieb waterproof pannier","anchors":["Ortlieb"],"rewrite":"Ortlieb vodotěsná cyklistická brašna","wrong":"Ortlieb backpack"},
+    {"query":"Hario glass teapot","anchors":["Hario"],"rewrite":"Hario skleněná konvice na čaj","wrong":"Hario ceramic teapot"},
+    {"query":"Korg digital piano B2","anchors":["Korg","B2"],"rewrite":"Korg digitální piano B2","wrong":"Korg digitální piano B1"}
+  ]
+}

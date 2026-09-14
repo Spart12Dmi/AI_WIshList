@@ -4,10 +4,18 @@ There are two different tests. Do not confuse fixture accuracy with live coverag
 
 ## Frozen candidate corpus
 
+`query_plan_cases.json` separately exercises model planning/review across eight unrelated
+categories (personal care, batteries, tools, air treatment, gardening, cycling, teaware,
+and instruments). The unit tests mock model outputs to test orchestration and rejection
+handling; these results are not evidence of actual model accuracy. Run real local-model
+checks separately. Product-specific automatic query substitutions have been removed.
+
 `search_cases.json` has 44 manually labelled cases spanning whisky, mice,
 headphones, coffee/grinders, phones, cameras and LEGO. The labels distinguish
 semantic relevance (`relevant`) from eligibility for display (`expected`), which
 also requires a valid price, regional evidence and no explicit unavailable status.
+Cases with a `variants` field represent a phrase that was independently approved
+by the query-review agent; the matcher itself has no category synonym table.
 Titles marked `user-screenshot-title` came from the reported failure. Other cases
 are synthetic boundary tests; their example URLs/prices are not merchant data.
 
