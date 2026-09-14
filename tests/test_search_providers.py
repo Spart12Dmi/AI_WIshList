@@ -5,8 +5,7 @@ import pytest
 
 from app.agents import select_relevant_stores
 from app.config import get_settings
-from app.tools import web_search
-from app.tools import browser_search
+from app.tools import browser_search, web_search
 
 
 def test_failed_fast_provider_does_not_discard_later_success(client, monkeypatch):
@@ -104,6 +103,35 @@ def test_browser_search_unwraps_engine_redirects(monkeypatch):
         "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fmerchant.cz%2Fproduct",
         "https://html.duckduckgo.com/html/?q=product",
     ) == "https://merchant.cz/product"
+
+
+def test_rendered_product_fallback_reads_current_regional_price(monkeypatch):
+    monkeypatch.setattr(browser_search, "is_public_http_url", lambda url: True)
+    html = """
+    <html><head><meta property="og:image" content="/ps5.jpg"></head>
+      <body><h1>Sony PlayStation 5 Pro 2TB console</h1>
+        <div class="old-price">34 990 KÄ</div>
+        <div class="price-current">29 990 KÄ</div>
+      </body>
+    </html>
+    """
+    html = '<head><meta property="og:image" content="/ps5.jpg"></head><h1>Sony PlayStation 5 Pro 2TB console</h1><div class="price-current">29 990 CZK</div>'
+    offer = browser_search.parse_rendered_product_page(
+        html, "https://merchant.cz/playstation-5-pro", query="PlayStation 5 Pro", region="cz-cs"
+    )
+    assert offer["accepted"] is True
+    assert offer["price"] == 29990
+    assert offer["currency"] == "CZK"
+    assert offer["image_url"] == "https://merchant.cz/ps5.jpg"
+
+
+def test_rendered_product_fallback_does_not_use_old_or_shipping_price(monkeypatch):
+    monkeypatch.setattr(browser_search, "is_public_http_url", lambda url: True)
+    html = "<h1>Example product</h1><div class='old-price'>34 990 CZK</div><div class='shipping-price'>199 CZK</div>"
+    offer = browser_search.parse_rendered_product_page(
+        html, "https://merchant.cz/product", query="Example product", region="cz-cs"
+    )
+    assert offer["accepted"] is False
 
 
 def test_store_selection_preserves_upstream_relevance_instead_of_seo_word_counts():

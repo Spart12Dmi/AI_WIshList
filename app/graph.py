@@ -215,7 +215,14 @@ def search_and_validate(state):
                                 offers = [
                                     p
                                     for p in iter_browser_product_extractions(
-                                        [{**page, "query": state["query"], "queries": variants}]
+                                        [
+                                            {
+                                                **page,
+                                                "query": state["query"],
+                                                "queries": variants,
+                                                "region": region.search_region,
+                                            }
+                                        ]
                                     )
                                     if p.get("accepted")
                                 ]

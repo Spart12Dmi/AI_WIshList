@@ -1,15 +1,26 @@
-from collections.abc import Iterator
 import logging
+import re
+from collections.abc import Iterator
 from typing import Any
 from urllib.parse import parse_qs, quote_plus, unquote, urljoin, urlsplit
 
+from bs4 import BeautifulSoup
 from langchain_core.tools import tool
 from playwright.sync_api import Browser, Page, Route, sync_playwright
 
 from app.config import get_settings
 from app.query_expansion import matches_query
-from app.tools.web_search import is_public_http_url, parse_catalog_links, parse_product_offers
-
+from app.regions import REGIONS
+from app.tools.web_search import (
+    NON_PRODUCT_PAGE_PATTERNS,
+    _meta_content,
+    _normalise_currency,
+    _shop_name,
+    is_public_http_url,
+    parse_catalog_links,
+    parse_price,
+    parse_product_offers,
+)
 
 SEARCH_PAGE_URLS = (
     "https://html.duckduckgo.com/html/?q={query}",
@@ -94,7 +105,109 @@ def search_browser(query: str, max_results: int, region: str = "wt-wt") -> list[
             browser.close()
 
 
-def _load_product_page(browser: Browser, url: str, discovered_title: str, query: str = "", queries=()) -> dict[str, Any]:
+def parse_rendered_product_page(
+    html: str, page_url: str, discovered_title: str = "", query: str = "", queries=(), region: str = "wt-wt"
+) -> dict[str, Any]:
+    """Read a visible price from a rendered product page when JSON-LD is absent.
+
+    Modern storefronts often inject the price into the DOM after JavaScript
+    runs and expose no Schema.org offer.  This fallback is intentionally
+    conservative: it requires a product-like heading, an explicit currency,
+    and a current-price selector (never arbitrary page text).
+    """
+    soup = BeautifulSoup(html, "lxml")
+    heading = soup.find("h1")
+    title = next(
+        (
+            value.strip()
+            for value in (
+                heading.get_text(" ", strip=True) if heading else "",
+                _meta_content(soup, "og:title", "twitter:title") or "",
+                discovered_title,
+                soup.title.get_text(" ", strip=True) if soup.title else "",
+            )
+            if value and value.strip()
+        ),
+        "",
+    )
+    if not title or NON_PRODUCT_PAGE_PATTERNS.search(title):
+        return {"accepted": False, "reason": "The rendered page did not expose a product heading."}
+    if query and not matches_query(query, title, queries):
+        return {"accepted": False, "reason": "The rendered product heading did not match the query."}
+
+    expected = next(
+        (set(profile.preferred_currencies) for profile in REGIONS.values() if profile.search_region == region),
+        set(),
+    )
+    currency_markers = {
+        "CZK": re.compile(r"\bCZK\b|K(?:č|c)", re.I),
+        "EUR": re.compile(r"\bEUR\b|€", re.I),
+        "PLN": re.compile(r"\bPLN\b|zł", re.I),
+        "GBP": re.compile(r"\bGBP\b|£", re.I),
+        "USD": re.compile(r"\bUSD\b|\$", re.I),
+    }
+    # Keep symbols as escaped Unicode so this source remains correct on
+    # Windows checkouts that use a legacy code page (not mojibake bytes).
+    currency_markers.update({
+        "CZK": re.compile(r"\bCZK\b|K(?:\u010d|c)", re.I),
+        "EUR": re.compile(r"\bEUR\b|\u20ac", re.I),
+        "PLN": re.compile(r"\bPLN\b|z\u0142", re.I),
+        "GBP": re.compile(r"\bGBP\b|\u00a3", re.I),
+    })
+    selectors = (
+        '[itemprop="price"]', '[data-price]', '[data-product-price]',
+        ".price-current", ".current-price", ".product-price", ".price",
+        '[class*="price"]', '[id*="price"]',
+    )
+    price_node = None
+    for node in soup.select(", ".join(selectors)):
+        classes = " ".join(node.get("class", [])) + " " + str(node.get("id", ""))
+        if re.search(r"(?:old|was|before|shipping|delivery|installment|monthly|unit)[-_ ]?price", classes, re.I):
+            continue
+        text = " ".join(node.get_text(" ", strip=True).split())
+        if not text:
+            continue
+        price = parse_price(node.get("content") or node.get("data-price") or text)
+        if price is None:
+            continue
+        currency = _normalise_currency(node.get("data-currency") or node.get("content-currency"))
+        if not currency:
+            for code, marker in currency_markers.items():
+                if marker.search(text):
+                    currency = code
+                    break
+        if not currency:
+            currency = _normalise_currency(
+                _meta_content(soup, "product:price:currency", "og:price:currency")
+            )
+        if not currency or (expected and currency not in expected):
+            continue
+        price_node = (price, currency)
+        break
+    if not price_node:
+        return {"accepted": False, "reason": "The rendered page did not expose a current price and currency."}
+    price, currency = price_node
+    image_url = _meta_content(soup, "og:image", "twitter:image", "twitter:image:src")
+    if image_url:
+        image_url = urljoin(page_url, image_url)
+        if not is_public_http_url(image_url):
+            image_url = None
+    return {
+        "accepted": True,
+        "title": title,
+        "price": price,
+        "currency": currency,
+        "shop": _shop_name(page_url),
+        "url": page_url,
+        "source_url": page_url,
+        "image_url": image_url,
+        "availability": None,
+    }
+
+
+def _load_product_page(
+    browser: Browser, url: str, discovered_title: str, query: str = "", queries=(), region: str = "wt-wt"
+) -> dict[str, Any]:
     settings = get_settings()
     if not is_public_http_url(url):
         return {"accepted": False, "reason": "The candidate URL is not public."}
@@ -108,6 +221,10 @@ def _load_product_page(browser: Browser, url: str, discovered_title: str, query:
             return {"accepted": False, "reason": "The page redirected to a non-public address."}
         html = page.content()
         offers = parse_product_offers(html, final_url, discovered_title)
+        if not offers:
+            rendered = parse_rendered_product_page(html, final_url, discovered_title, query, queries, region)
+            if rendered.get("accepted"):
+                offers.append(rendered)
         if not offers or (query and not any(matches_query(query, item["title"], queries) for item in offers)):
             for candidate in parse_catalog_links(html, final_url, query, queries):
                 try:
@@ -118,7 +235,15 @@ def _load_product_page(browser: Browser, url: str, discovered_title: str, query:
                     )
                     page.wait_for_timeout(settings.browser_render_wait_ms)
                     if is_public_http_url(page.url):
-                        offers.extend(parse_product_offers(page.content(), page.url, candidate["title"]))
+                        candidate_html = page.content()
+                        candidate_offers = parse_product_offers(candidate_html, page.url, candidate["title"])
+                        if not candidate_offers:
+                            rendered = parse_rendered_product_page(
+                                candidate_html, page.url, candidate["title"], query, queries, region
+                            )
+                            if rendered.get("accepted"):
+                                candidate_offers.append(rendered)
+                        offers.extend(candidate_offers)
                 except Exception:
                     continue
         return {"accepted": bool(offers), "offers": offers}
@@ -137,7 +262,12 @@ def iter_browser_product_extractions(candidates: list[dict[str, str]]) -> Iterat
             for candidate in candidates[: settings.browser_candidate_limit]:
                 try:
                     result = _load_product_page(
-                        browser, candidate["url"], candidate.get("title", ""), candidate.get("query", ""), candidate.get("queries", ())
+                        browser,
+                        candidate["url"],
+                        candidate.get("title", ""),
+                        candidate.get("query", ""),
+                        candidate.get("queries", ()),
+                        candidate.get("region", "wt-wt"),
                     )
                     if result.get("offers"):
                         yield from result["offers"]

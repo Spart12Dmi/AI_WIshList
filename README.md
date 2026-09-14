@@ -51,7 +51,9 @@ See [HTTPX SSL configuration](https://www.python-httpx.org/advanced/ssl/).
 - Create/rename/delete lists, save products, add unpriced ideas, edit notes and
   target prices, and remove items.
 - Regional discovery of up to 15 stores, bounded parallel per-store searches,
-  structured HTTP extraction and Chromium rendering fallback.
+  structured HTTP extraction and Chromium rendering fallback (including
+  conservative visible current-price parsing when JavaScript adds the price
+  without Schema.org JSON-LD).
 - SSE product updates, progress, source links, warnings, cancellation and heartbeats.
 - Product details with shop links, images when supplied, stock status, observation
   timestamps and minima **per currency**, never an invalid EUR-versus-CZK comparison.
