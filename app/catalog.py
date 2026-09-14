@@ -10,6 +10,11 @@ from app.database import connection
 from app.matching import SHOPPING_WORDS, words
 from app.schemas import ProductOffer
 
+_MEASUREMENT_WORDS = {
+    "mm", "cm", "m", "in", "inch", "inches", "palec", "palce", "palcu",
+    "g", "kg", "ml", "cl", "l", "gb", "tb", "yo", "y", "years", "year",
+}
+
 
 def is_available(value):
     # Extractors may supply a Schema.org URL or a bare enum. Unknown availability
@@ -30,7 +35,23 @@ def _specific_model_query(query):
     if not query:
         return False
     requested = words(query) - SHOPPING_WORDS
-    return len(requested) >= 2 and any(any(char.isdigit() for char in token) for token in requested)
+    if len(requested) < 2:
+        return False
+    raw_tokens = re.findall(r"[^\W_]+", str(query).casefold())
+    model_number = False
+    for index, token in enumerate(raw_tokens):
+        if not any(char.isdigit() for char in token):
+            continue
+        # A standalone dimension/age/weight is a search constraint, not a
+        # model identity (``15 inch laptop`` must not become one product).
+        neighbors = set(raw_tokens[max(0, index - 1):index] + raw_tokens[index + 1:index + 2])
+        if token.isdigit() and neighbors & _MEASUREMENT_WORDS:
+            continue
+        if re.fullmatch(r"\d+(?:mm|cm|m|in|inch|inches|g|kg|ml|cl|l|gb|tb)", token):
+            continue
+        model_number = True
+        break
+    return model_number
 
 
 def identity(offer, query=None):

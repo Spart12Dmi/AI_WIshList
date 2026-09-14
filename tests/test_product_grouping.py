@@ -103,3 +103,9 @@ def test_broad_category_requests_do_not_collapse_every_listing(client):
     first = save_offer(phone_offer("Acme wireless headphones Silver", price=1000), "czechia")
     second = save_offer(phone_offer("Acme wireless headphones Blue", "second", 1100), "czechia")
     assert first["id"] != second["id"]
+
+
+def test_measurement_only_numbers_do_not_trigger_model_family_grouping(client):
+    first = save_offer(phone_offer("Acme 15 inch laptop Silver", price=1000), "czechia", query="15 inch laptop")
+    second = save_offer(phone_offer("Acme 15 inch laptop Blue", "second", 1100), "czechia", query="15 inch laptop")
+    assert first["id"] != second["id"]
