@@ -55,6 +55,31 @@ def test_all_provider_failures_are_reported_not_cached(client, monkeypatch):
         web_search._run_web_search("No product", 3, "cz-cs")
 
 
+def test_generic_fallback_recovers_when_configured_engines_are_empty(client, monkeypatch):
+    """A provider outage must not hide a valid result from another DDGS engine."""
+    monkeypatch.setattr(get_settings(), "search_backends", "failed,bing")
+    monkeypatch.setattr(get_settings(), "search_cache_ttl_seconds", 0)
+    monkeypatch.setattr(web_search, "is_public_http_url", lambda url: True)
+    calls = []
+
+    def search(query, backend, **kwargs):
+        calls.append(backend)
+        if backend == "duckduckgo":
+            return [
+                {
+                    "href": "https://shop.cz/playstation-5-pro",
+                    "title": "Sony PlayStation 5 Pro 2TB",
+                    "body": "Herní konzole PlayStation 5 Pro",
+                }
+            ]
+        return []
+
+    monkeypatch.setattr(web_search, "DDGS", lambda **kwargs: SimpleNamespace(text=search))
+    rows = web_search._run_web_search("PlayStation 5 Pro koupit", 3, "cz-cs")
+    assert rows[0]["url"] == "https://shop.cz/playstation-5-pro"
+    assert "duckduckgo" in calls
+
+
 def test_store_selection_preserves_upstream_relevance_instead_of_seo_word_counts():
     results = [
         {"url": "https://relevant.cz/lego-10307", "title": "LEGO 10307", "snippet": "17999 CZK"},

@@ -31,6 +31,11 @@ NON_PRODUCT_PAGE_PATTERNS = re.compile(
     r"\b(price guide|pricing guide|complete price|whisk(?:e)?y prices|review|blog|article|news|recipe|history|top \d+|best \d+)\b",
     re.IGNORECASE,
 )
+# Some DDGS providers intermittently return an empty list (or are unavailable
+# in a particular network).  Keep a small provider-independent fallback set so
+# one outage cannot turn an otherwise valid product query into a zero-result
+# search.  These are engines, not product/category rules.
+DISCOVERY_FALLBACK_BACKENDS = ("duckduckgo", "google", "mojeek")
 
 
 def is_public_http_url(url: str) -> bool:
@@ -87,8 +92,20 @@ def _run_web_search(query: str, max_results: int, region: str) -> list[dict[str,
     with ThreadPoolExecutor(max_workers=min(4, len(providers))) as pool:
         batches = dict(zip(providers, pool.map(fetch, providers), strict=True))
     cleaned = rank_provider_results(batches, query, region)[:result_limit]
+    # Provider failures are common on desktop networks (certificate stores,
+    # rate limits, DNS and regional blocks).  Retry with a separate generic
+    # backend set only after the configured set produced no usable rows.  The
+    # same URL cleaning and regional ranking still apply, so this cannot bypass
+    # public-URL or relevance safeguards.
     if not cleaned:
-        raise RuntimeError("No usable results from the configured search providers")
+        fallback = [name for name in DISCOVERY_FALLBACK_BACKENDS if name not in providers]
+        if fallback:
+            log.info("Configured search providers returned no usable rows; trying generic fallback backends")
+            with ThreadPoolExecutor(max_workers=min(3, len(fallback))) as pool:
+                fallback_batches = dict(zip(fallback, pool.map(fetch, fallback), strict=True))
+            cleaned = rank_provider_results(fallback_batches, query, region)[:result_limit]
+    if not cleaned:
+        raise RuntimeError("No usable results from configured or fallback search providers")
     # Stabilize discovery URLs, NEVER prices or extracted offers. Every product
     # page is fetched and validated again. Failed/empty searches are not cached.
     if ttl and cleaned:

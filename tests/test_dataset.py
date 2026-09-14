@@ -11,7 +11,7 @@ from app.catalog import save_offer
 from app.matching import query_evidence
 from app.regions import get_region
 from app.schemas import ProductMatch
-from evals.benchmark import CORPORA, decision, load_cases, metrics
+from evals.benchmark import CORPORA, decision, load_cases, metrics, run
 from evals.live import violations_for
 
 
@@ -39,6 +39,24 @@ def test_no_predictions_is_not_perfect_precision():
     result = metrics([{"predicted": False, "expected": True}])
     assert result["precision"] is None
     assert result["recall"] == 0
+
+
+def test_corpus_has_cross_category_console_recovery_and_unique_ids():
+    cases = [case for path in CORPORA for case in load_cases(path)]
+    assert len(cases) >= 140
+    assert any(case.query == "PlayStation 5 Pro" for case in cases)
+    assert len({case.id for case in cases}) == len(cases)
+    assert len({case.category for case in cases}) >= 8
+
+
+def test_benchmark_reports_metrics_by_category():
+    cases = [case for path in CORPORA for case in load_cases(path)]
+    result = run(cases, [])
+    assert result["runs"]["rules"]["metrics"]["count"] == len(cases)
+    assert set(result["runs"]["rules"]["by_category"]) >= {
+        "gaming", "computers", "photography", "kitchen", "networking"
+    }
+    assert all(item["count"] for item in result["runs"]["rules"]["by_category"].values())
 
 
 def test_model_error_is_never_a_successful_negative():

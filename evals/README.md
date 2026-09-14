@@ -25,9 +25,13 @@ historical metadata observations, not current prices or live training data.
 
 `extended_cases.json` adds 52 manually labelled boundary cases: model suffixes,
 capacities, decimal sizes, packs, translations, accessories and flavour/scent
-false matches. `intent_cases.json` adds 16 purchase/rental and URL cases. Total:
-**120 candidate cases**. `source_cases.json` separately preserves **six reduced
-real JSON-LD observations**, with manually checked URL/price/MPN expectations.
+false matches. `intent_cases.json` adds 16 purchase/rental and URL cases.
+`universal_cases.json` adds 20 cross-category recovery cases (gaming, computers,
+photography, kitchen, clothing, home, wearables and networking), including the
+reported console-model boundary. Total: **140 candidate cases**. The benchmark
+also reports precision/recall/F1 by split and by category so a gain in one family
+cannot hide regressions in another. `source_cases.json` separately preserves
+**six reduced real JSON-LD observations**, with manually checked URL/price/MPN expectations.
 The unit suite replays these without network and permutes shoe arrival order.
 Case/diacritic/whitespace transformations are robustness tests, not additional
 independent human labels.

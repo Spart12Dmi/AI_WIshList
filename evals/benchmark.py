@@ -29,6 +29,7 @@ CORPORA = [
     CORPUS.with_name("observed_cases.json"),
     CORPUS.with_name("extended_cases.json"),
     CORPUS.with_name("intent_cases.json"),
+    CORPUS.with_name("universal_cases.json"),
 ]
 
 
@@ -42,6 +43,7 @@ class Case(BaseModel):
     expected: bool
     reason: str
     provenance: str = "synthetic-boundary-case"
+    category: str = "uncategorized"
     region: str = "czechia"
     url: str | None = None
     currency: str = "CZK"
@@ -167,6 +169,12 @@ def run(cases, models, repeat=1):
         for row in rows:
             groups[row["split"]].append(row)
         result["by_split"] = {split: metrics(items) for split, items in groups.items()}
+        categories = defaultdict(list)
+        for row in rows:
+            categories[row.get("category", "uncategorized")].append(row)
+        result["by_category"] = {
+            category: metrics(items) for category, items in sorted(categories.items())
+        }
         result["errors"] = [row["id"] for row in rows if row["predicted"] != row["expected"]]
         if rows and "raw_relevant" in rows[0]:
             result["raw_relevance_metrics"] = metrics(rows, "raw_relevant", "relevant")

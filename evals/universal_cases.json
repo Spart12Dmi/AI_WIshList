@@ -1,0 +1,227 @@
+{
+  "version": 1,
+  "description": "Universal cross-category recovery cases. Manually labelled synthetic titles for regression only; no product-specific rules are implied.",
+  "cases": [
+    {
+      "id": "console-ps5-pro-exact",
+      "category": "gaming",
+      "split": "challenge",
+      "query": "PlayStation 5 Pro",
+      "title": "Sony PlayStation 5 Pro 2TB console",
+      "relevant": true,
+      "expected": true,
+      "reason": "Exact console model is present",
+      "provenance": "synthetic-universal-v1"
+    },
+    {
+      "id": "console-ps5-pro-localized",
+      "category": "gaming",
+      "variants": ["Herni konzole PlayStation 5 Pro"],
+      "split": "challenge",
+      "query": "PlayStation 5 Pro",
+      "title": "Herni konzole PlayStation 5 Pro 2TB",
+      "relevant": true,
+      "expected": true,
+      "reason": "Reviewed localized listing retains the exact model",
+      "provenance": "synthetic-universal-v1"
+    },
+    {
+      "id": "console-ps5-pro-wrong-model",
+      "category": "gaming",
+      "split": "challenge",
+      "query": "PlayStation 5 Pro",
+      "title": "Sony PlayStation 5 Slim 1TB console",
+      "relevant": false,
+      "expected": false,
+      "reason": "Different console revision",
+      "provenance": "synthetic-universal-v1"
+    },
+    {
+      "id": "console-ps5-pro-accessory",
+      "category": "gaming",
+      "split": "challenge",
+      "query": "PlayStation 5 Pro",
+      "title": "Protective cover for PlayStation 5 Pro console",
+      "relevant": false,
+      "expected": false,
+      "reason": "Accessory is not the console",
+      "provenance": "synthetic-universal-v1"
+    },
+    {
+      "id": "console-ps5-pro-storage-mismatch",
+      "category": "gaming",
+      "split": "challenge",
+      "query": "PlayStation 5 Pro 2TB",
+      "title": "Sony PlayStation 5 Pro 1TB console",
+      "relevant": false,
+      "expected": false,
+      "reason": "Explicit storage constraint differs",
+      "provenance": "synthetic-universal-v1"
+    },
+    {
+      "id": "laptop-thinkpad-exact",
+      "category": "computers",
+      "split": "challenge",
+      "query": "Lenovo ThinkPad T14 Gen 4",
+      "title": "Lenovo ThinkPad T14 Gen 4 laptop",
+      "relevant": true,
+      "expected": true,
+      "reason": "Exact laptop model and generation",
+      "provenance": "synthetic-universal-v1"
+    },
+    {
+      "id": "laptop-thinkpad-wrong-generation",
+      "category": "computers",
+      "split": "challenge",
+      "query": "Lenovo ThinkPad T14 Gen 4",
+      "title": "Lenovo ThinkPad T14 Gen 3 laptop",
+      "relevant": false,
+      "expected": false,
+      "reason": "Different generation",
+      "provenance": "synthetic-universal-v1"
+    },
+    {
+      "id": "laptop-thinkpad-sleeve",
+      "category": "computers",
+      "split": "challenge",
+      "query": "Lenovo ThinkPad T14 Gen 4",
+      "title": "Protective sleeve for Lenovo ThinkPad T14 Gen 4",
+      "relevant": false,
+      "expected": false,
+      "reason": "Laptop sleeve is an accessory",
+      "provenance": "synthetic-universal-v1"
+    },
+    {
+      "id": "camera-eos-exact",
+      "category": "photography",
+      "split": "challenge",
+      "query": "Canon EOS R50",
+      "title": "Canon EOS R50 mirrorless camera body",
+      "relevant": true,
+      "expected": true,
+      "reason": "Exact camera model",
+      "provenance": "synthetic-universal-v1"
+    },
+    {
+      "id": "camera-eos-lens",
+      "category": "photography",
+      "split": "challenge",
+      "query": "Canon EOS R50",
+      "title": "Replacement lens for Canon EOS R50 camera",
+      "relevant": false,
+      "expected": false,
+      "reason": "Lens is not the requested camera body",
+      "provenance": "synthetic-universal-v1"
+    },
+    {
+      "id": "coffee-dedica-exact",
+      "category": "kitchen",
+      "split": "challenge",
+      "query": "DeLonghi Dedica",
+      "title": "DeLonghi Dedica espresso coffee machine",
+      "relevant": true,
+      "expected": true,
+      "reason": "Exact coffee machine family",
+      "provenance": "synthetic-universal-v1"
+    },
+    {
+      "id": "coffee-dedica-filter",
+      "category": "kitchen",
+      "split": "challenge",
+      "query": "DeLonghi Dedica",
+      "title": "Replacement water filter for DeLonghi Dedica",
+      "relevant": false,
+      "expected": false,
+      "reason": "Replacement filter is an accessory",
+      "provenance": "synthetic-universal-v1"
+    },
+    {
+      "id": "jacket-model-exact",
+      "category": "clothing",
+      "split": "challenge",
+      "query": "Patagonia Nano Puff jacket",
+      "title": "Patagonia Nano Puff insulated jacket",
+      "relevant": true,
+      "expected": true,
+      "reason": "Exact apparel model",
+      "provenance": "synthetic-universal-v1"
+    },
+    {
+      "id": "jacket-model-cover",
+      "category": "clothing",
+      "split": "challenge",
+      "query": "Patagonia Nano Puff jacket",
+      "title": "Protective cover for Patagonia Nano Puff jacket",
+      "relevant": false,
+      "expected": false,
+      "reason": "Cover is not the jacket",
+      "provenance": "synthetic-universal-v1"
+    },
+    {
+      "id": "vacuum-model-exact",
+      "category": "home",
+      "split": "challenge",
+      "query": "Miele C3 vacuum",
+      "title": "Miele Complete C3 vacuum cleaner",
+      "relevant": true,
+      "expected": true,
+      "reason": "Exact vacuum family",
+      "provenance": "synthetic-universal-v1"
+    },
+    {
+      "id": "vacuum-model-bag",
+      "category": "home",
+      "split": "challenge",
+      "query": "Miele C3 vacuum",
+      "title": "Replacement dust bags for Miele Complete C3 vacuum",
+      "relevant": false,
+      "expected": false,
+      "reason": "Consumable is not the vacuum",
+      "provenance": "synthetic-universal-v1"
+    },
+    {
+      "id": "watch-model-exact",
+      "category": "wearables",
+      "split": "challenge",
+      "query": "Garmin Forerunner 265",
+      "title": "Garmin Forerunner 265 GPS smartwatch",
+      "relevant": true,
+      "expected": true,
+      "reason": "Exact wearable model",
+      "provenance": "synthetic-universal-v1"
+    },
+    {
+      "id": "watch-model-band",
+      "category": "wearables",
+      "split": "challenge",
+      "query": "Garmin Forerunner 265",
+      "title": "Replacement band for Garmin Forerunner 265",
+      "relevant": false,
+      "expected": false,
+      "reason": "Replacement band is an accessory",
+      "provenance": "synthetic-universal-v1"
+    },
+    {
+      "id": "router-model-exact",
+      "category": "networking",
+      "split": "challenge",
+      "query": "TP-Link Archer AX55",
+      "title": "TP-Link Archer AX55 Wi-Fi router",
+      "relevant": true,
+      "expected": true,
+      "reason": "Exact networking model",
+      "provenance": "synthetic-universal-v1"
+    },
+    {
+      "id": "router-model-different",
+      "category": "networking",
+      "split": "challenge",
+      "query": "TP-Link Archer AX55",
+      "title": "TP-Link Archer AX73 Wi-Fi router",
+      "relevant": false,
+      "expected": false,
+      "reason": "Different router model",
+      "provenance": "synthetic-universal-v1"
+    }
+  ]
+}
