@@ -58,6 +58,10 @@ See [HTTPX SSL configuration](https://www.python-httpx.org/advanced/ssl/).
 - Grouping by GTIN, brand + manufacturer part number (MPN), or exact normalized
   title, preserving explicit size/colour. MPNs are displayed in comparison cards.
   Missing identifiers still limit confidence in cross-shop variant matching.
+- Concrete model searches (for example, a model number or alphanumeric code) use
+  the normalized request as a family key. Colour, storage and condition variants
+  then appear as separate offers inside one comparison card; a requested capacity,
+  size or model code remains part of the family key.
 - Scoped Schema.org and Shoptet microdata extraction can produce multiple items
   from one category. Where metadata is absent, bounded product-card navigation
   opens individual pages. A separate price-source link identifies category-based
@@ -171,10 +175,13 @@ card saving. Product photos and titles open the multi-store comparison. The deta
 save dialog still supports notes and target prices. Repeated saves are idempotent.
 
 Equivalent title spellings, word order, age notation and volume units are normalized
-for grouping. Manufacturer identifiers take priority; conflicting identifiers, sizes,
-volumes, strengths and gift-set titles remain separate. Missing variant information
-is not guessed. Existing account data and saved items are not deleted or bulk-rewritten;
-new searches use the updated grouping when offers are refreshed.
+for grouping. Manufacturer identifiers take priority for ordinary searches; concrete
+model searches intentionally group offer dimensions (colour/storage/condition) so a
+single card can compare every shop. Conflicting identifiers, requested sizes,
+volumes, strengths and gift-set titles remain protected by the query key. Missing
+variant information is not guessed. Existing account data and saved items are not
+deleted or bulk-rewritten; new searches use the updated grouping when offers are
+refreshed.
 
 Result filters work immediately on products already found: photo presence,
 currency, price limit and sorting. A price limit requires a currency; cross-currency
