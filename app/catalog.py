@@ -7,7 +7,7 @@ import time
 from decimal import Decimal
 
 from app.database import connection
-from app.matching import words
+from app.matching import SHOPPING_WORDS, words
 from app.schemas import ProductOffer
 
 
@@ -18,7 +18,28 @@ def is_available(value):
     return name not in {"outofstock", "discontinued", "soldout"}
 
 
-def identity(offer):
+def _specific_model_query(query):
+    """Return true for a concrete model search, not a broad category request.
+
+    A query-aware family key is useful for searches such as ``iPhone 17 Pro``:
+    colour and storage are offer dimensions, so they should compare together.
+    Broad requests such as ``wireless headphones`` must still produce separate
+    products. Digits/model codes provide a category-independent specificity
+    signal; no brand or product vocabulary is embedded here.
+    """
+    if not query:
+        return False
+    requested = words(query) - SHOPPING_WORDS
+    return len(requested) >= 2 and any(any(char.isdigit() for char in token) for token in requested)
+
+
+def identity(offer, query=None):
+    if _specific_model_query(query):
+        requested = words(query) - SHOPPING_WORDS
+        # The graph has already applied original/approved-variant matching.
+        # Store only the normalized request in this key, so title-only variant
+        # details (colour, condition, storage) become comparable offers.
+        return "family:" + " ".join(sorted(requested))
     gtin = offer.get("gtin")
     if gtin and re.fullmatch(r"\d{8}|\d{12,14}", str(gtin)):
         return "gtin:" + str(gtin)
@@ -50,11 +71,11 @@ def identity(offer):
     )
 
 
-def save_offer(raw, region):
+def save_offer(raw, region, query=None):
     offer = ProductOffer.model_validate(raw).model_dump()
     if not offer["currency"]:
         raise ValueError("An explicit currency is required to compare offers")
-    key = identity(offer)
+    key = identity(offer, query)
     pid = hashlib.sha256(key.encode()).hexdigest()[:24]
     now = time.time()
     with connection() as db:

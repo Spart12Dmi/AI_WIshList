@@ -288,7 +288,7 @@ def search_and_validate(state):
                     if not accepted:
                         audit(offer, "semantic_or_region_rejection")
                         continue
-                    product = save_offer(accepted[0], state["region"])
+                    product = save_offer(accepted[0], state["region"], query=state["query"])
                     # A richer/corrected observation may reassign a URL to a
                     # new identity. Remove it from earlier streamed cards too.
                     for previous_id, previous in list(products.items()):

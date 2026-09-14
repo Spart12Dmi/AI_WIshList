@@ -218,7 +218,7 @@ async function showProduct(id, region='global') {
     const source=safeURL(offer.source_url);if(source&&source!==url){const link=el('a','fine','Price source');link.href=source;link.target='_blank';link.rel='noopener noreferrer';left.append(link);}
     row.append(left,right);root.append(row);
   }
-  root.append(el('p','fine','Matching product identifiers or normalized names group store offers. Age and equivalent units are normalized; different sizes and variants stay separate. Check model, size and colour before buying.'));
+  root.append(el('p','fine','Matching identifiers and concrete model searches group store offers. Colour, storage and condition are shown per shop; explicit model or size constraints remain protected. Check the exact variant before buying.'));
   if(!$('#product-dialog').open) $('#product-dialog').showModal();
 }
 $('#close-product').onclick=()=>$('#product-dialog').close();

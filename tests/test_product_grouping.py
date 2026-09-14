@@ -13,6 +13,11 @@ def offer(title, host="first", price=1700):
             "currency": "CZK", "shop": host}
 
 
+def phone_offer(title, host="first", price=29990):
+    return {"title": title, "url": f"https://{host}.cz/iphone", "price": price,
+            "currency": "CZK", "shop": host}
+
+
 @pytest.mark.parametrize("title", ["Lagavulin 16 y.o. 0,7 l 43%", "New Lagavulin 16 years old 70cl 43% product",
                                  "Lagavulin 16 let 43% 700 ml", "Lagavulin 16 YO 43% 0.7L | Shop"])
 def test_age_and_volume_spellings_group_across_stores(client, title):
@@ -80,3 +85,21 @@ def test_old_saved_ids_keep_combined_offers_and_notes_after_grouping(client, acc
 
 def test_age_spelling_also_matches_search_query():
     assert query_evidence("Lagavulin 16 y o", "Lagavulin 16 years old 70cl 43%")
+
+
+def test_concrete_model_search_groups_offer_dimensions_for_comparison(client):
+    query = "Apple iPhone 17 Pro"
+    first = save_offer(phone_offer("Apple iPhone 17 Pro 256GB Silver"), "czechia", query=query)
+    second = save_offer(phone_offer("Apple iPhone 17 Pro 256GB Blue", "second", 28990), "czechia", query=query)
+    third = save_offer(phone_offer("Apple iPhone 17 Pro 512GB Orange", "third", 33990), "czechia", query=query)
+
+    assert first["id"] == second["id"] == third["id"]
+    assert third["offer_count"] == 3
+    assert third["minimum_prices"] == {"CZK": 28990}
+    assert {item["shop"] for item in third["offers"]} == {"first", "second", "third"}
+
+
+def test_broad_category_requests_do_not_collapse_every_listing(client):
+    first = save_offer(phone_offer("Acme wireless headphones Silver", price=1000), "czechia")
+    second = save_offer(phone_offer("Acme wireless headphones Blue", "second", 1100), "czechia")
+    assert first["id"] != second["id"]
