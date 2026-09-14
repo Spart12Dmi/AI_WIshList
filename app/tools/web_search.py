@@ -104,6 +104,18 @@ def _run_web_search(query: str, max_results: int, region: str) -> list[dict[str,
             with ThreadPoolExecutor(max_workers=min(3, len(fallback))) as pool:
                 fallback_batches = dict(zip(fallback, pool.map(fetch, fallback), strict=True))
             cleaned = rank_provider_results(fallback_batches, query, region)[:result_limit]
+    # DDGS can fail before the browser's certificate/network stack is touched.
+    # Use a real search page as the final discovery fallback for unscoped
+    # requests; scoped ``site:`` retries remain cheap and are covered by the
+    # generic market-hint query in StoreDiscoveryAgent.
+    if not cleaned and settings.use_browser_fallback and not re.search(r"\bsite:\S+", query, re.I):
+        try:
+            from app.tools.browser_search import search_browser
+
+            browser_rows = search_browser(query, result_limit, region)
+            cleaned = rank_provider_results({"chromium": browser_rows}, query, region)[:result_limit]
+        except Exception as exc:
+            log.info("Browser discovery fallback failed: %s", type(exc).__name__)
     if not cleaned:
         raise RuntimeError("No usable results from configured or fallback search providers")
     # Stabilize discovery URLs, NEVER prices or extracted offers. Every product

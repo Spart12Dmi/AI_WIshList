@@ -6,6 +6,7 @@ import pytest
 from app.agents import select_relevant_stores
 from app.config import get_settings
 from app.tools import web_search
+from app.tools import browser_search
 
 
 def test_failed_fast_provider_does_not_discard_later_success(client, monkeypatch):
@@ -78,6 +79,31 @@ def test_generic_fallback_recovers_when_configured_engines_are_empty(client, mon
     rows = web_search._run_web_search("PlayStation 5 Pro koupit", 3, "cz-cs")
     assert rows[0]["url"] == "https://shop.cz/playstation-5-pro"
     assert "duckduckgo" in calls
+
+
+def test_browser_discovery_is_last_resort_after_search_engines_fail(client, monkeypatch):
+    monkeypatch.setattr(get_settings(), "search_backends", "failed")
+    monkeypatch.setattr(get_settings(), "search_cache_ttl_seconds", 0)
+    monkeypatch.setattr(get_settings(), "use_browser_fallback", True)
+    monkeypatch.setattr(web_search, "is_public_http_url", lambda url: True)
+    monkeypatch.setattr(web_search, "DDGS", lambda **kwargs: SimpleNamespace(text=lambda *a, **kw: []))
+    monkeypatch.setattr(
+        browser_search,
+        "search_browser",
+        lambda query, max_results, region: [
+            {"url": "https://merchant.cz/product", "title": "A product", "snippet": ""}
+        ],
+    )
+    rows = web_search._run_web_search("A product", 3, "cz-cs")
+    assert rows[0]["url"] == "https://merchant.cz/product"
+
+
+def test_browser_search_unwraps_engine_redirects(monkeypatch):
+    monkeypatch.setattr(browser_search, "is_public_http_url", lambda url: True)
+    assert browser_search._unwrap_search_link(
+        "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fmerchant.cz%2Fproduct",
+        "https://html.duckduckgo.com/html/?q=product",
+    ) == "https://merchant.cz/product"
 
 
 def test_store_selection_preserves_upstream_relevance_instead_of_seo_word_counts():

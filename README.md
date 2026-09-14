@@ -129,6 +129,12 @@ Search providers are queried independently with bounded concurrency, then fused
 and ranked for the selected region **before** truncation. A failing provider does
 not discard another provider's results. Discovery rank is preserved when selecting
 stores; repeated shopping keywords do not boost a merchant.
+When all configured DDGS engines return no usable rows, the search retries with
+generic DDGS backends and, for an unscoped request, a real Chromium search page.
+Those links pass the same public-URL and regional/relevance gates; this fallback
+does not contain product or category-specific substitutions. A network or
+certificate failure is reported as a provider warning rather than a false empty
+catalogue.
 
 Purchase searches reject rental/day-rate listings. Offer URLs use the same
 structured Offer record as the price (not a category's `#product_1` identifier).
