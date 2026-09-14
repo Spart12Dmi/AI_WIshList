@@ -35,6 +35,7 @@ class ProductSearchState(TypedDict, total=False):
     search_mode: str
     planned_query: str
     query_variants: list[str]
+    planner_diagnostics: dict[str, int | bool | str]
     context: str
     sources: list[dict]
     stores: list[dict]
@@ -80,11 +81,15 @@ def plan_query(state):
         )
     query = re.sub(r"\bsite:\S+", "", query)[:300]
     variants = getattr(planner, "variants", [state["query"]])
+    diagnostics = getattr(planner, "diagnostics", {})
     emit("queries", queries=variants)
+    if diagnostics:
+        emit("planner", **diagnostics)
     emit("status", message=f"Search query: {query}")
     return {
         "planned_query": query,
         "query_variants": variants,
+        "planner_diagnostics": diagnostics,
         "warnings": warnings,
         "pipeline": state["pipeline"] + ["Structured query planning"],
     }
@@ -344,6 +349,7 @@ def finalize(state):
         pipeline=state.get("pipeline", []),
         sources=state.get("sources", []),
         stores_searched=[s["domain"] for s in state.get("stores", [])],
+        planner_diagnostics=state.get("planner_diagnostics", {}),
     )
     return {}
 

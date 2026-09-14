@@ -106,7 +106,18 @@ class QueryPlannerAgent:
         self.last_plan = None
         self.last_reviews = None
         self.rejected_variants = []
+        # Keep a small, non-sensitive audit record for the API and streamed UI.
+        # It deliberately contains counts and mode only, never model output or
+        # historical context, so diagnostics are safe to persist with a run.
+        self.diagnostics = {
+            "mode": "disabled" if not settings.use_llm_planner else "llm",
+            "fallback": False,
+            "candidates": 0,
+            "approved": 0,
+            "rejected": 0,
+        }
         if not settings.use_llm_planner:
+            self.diagnostics["fallback"] = True
             return fallback, ["Local LLM planning is disabled; used a direct shopping query."]
 
         try:
@@ -191,10 +202,17 @@ class QueryPlannerAgent:
                 except Exception as error:
                     self.rejected_variants.append({"query": candidate, "reason": str(error)[:160]})
             self.variants = search_variants(query, region, approved, reviewed=True)
+            self.diagnostics.update({
+                "candidates": len(candidates),
+                "approved": len(approved),
+                "rejected": len(self.rejected_variants),
+            })
             warnings = [] if len(self.variants) > 1 else ["No safe alternative phrases were approved; searching the original request."]
             return self.variants[1] if len(self.variants) > 1 else query.strip(), warnings
         except Exception as error:
             log.info("Structured planning failed: %s", type(error).__name__)
+        self.diagnostics["fallback"] = True
+        self.diagnostics["rejected"] = len(self.rejected_variants)
         return fallback, [
             "Local planning was unavailable or returned invalid output; used a direct shopping query."
         ]

@@ -100,6 +100,7 @@ class SearchResponse(BaseModel):
     products: list[ProductRecord]
     warnings: list[str] = Field(default_factory=list)
     pipeline: list[str] = Field(default_factory=list)
+    planner_diagnostics: dict[str, int | bool | str] = Field(default_factory=dict)
     run_id: str | None = None
 
 

@@ -265,6 +265,11 @@ function drawStores(){ $('#stores-list').replaceChildren(); for(const [domain,st
 function warning(message){if([...$('#warnings').children].some(n=>n.textContent===message))return;$('#warnings').append(el('p','',message));}
 function streamEvent(name,payload){
   if(name==='queries')$('#query-variants').replaceChildren(el('span','','Search phrases (tried as needed)'),...payload.queries.map(query=>el('span','',query)));
+  if(name==='planner'){
+    const mode=payload.mode==='llm'?'Local LLM planner':'Direct query fallback';
+    const count=payload.approved===1?'1 rewrite approved':`${payload.approved||0} rewrites approved`;
+    $('#pipeline').append(el('span','',`${mode} · ${count}`));
+  }
   if(name==='product_removed'){
     products.delete(payload.product_id);
     renderResults();
@@ -282,6 +287,12 @@ function streamEvent(name,payload){
     products=new Map(payload.products.map(product=>[product.id,product]));renderResults();
     for(const note of payload.warnings||[])warning(note);
     $('#pipeline').replaceChildren(...(payload.pipeline||[]).map(s=>el('span','',s)));
+    const planner=payload.planner_diagnostics;
+    if(planner&&Object.keys(planner).length){
+      const mode=planner.mode==='llm'?'Local LLM planner':'Direct query fallback';
+      const count=planner.approved===1?'1 rewrite approved':`${planner.approved||0} rewrites approved`;
+      $('#pipeline').append(el('span','',`${mode} · ${count}`));
+    }
     $('#status').textContent=`Search complete · ${products.size} products found for “${payload.query}”.`;
     if(!products.size)empty($('#results'),'No matching offers this time.','Try a model name or save your idea and come back later.');
   }
