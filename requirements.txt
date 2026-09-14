@@ -1,0 +1,28 @@
+# Tested direct dependency versions; transitive constraints remain upstream-managed.
+-c constraints.txt
+
+# Web API and configuration
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30,<1.0
+pydantic-settings>=2.6,<3.0
+python-dotenv>=1.0,<2.0
+
+# Agent orchestration and local model connection
+langgraph>=1.0,<2.0
+langchain-core>=1.0,<2.0
+langchain-ollama>=1.0,<2.0
+
+# Product-search adapters, HTML extraction, and resilient HTTP calls
+httpx>=0.27,<1.0
+truststore>=0.10,<1.0
+beautifulsoup4>=4.12,<5.0
+lxml>=5.3,<6.0
+selectolax>=0.3,<1.0
+tenacity>=9.0,<10.0
+orjson>=3.10,<4.0
+ddgs>=9.0,<10.0
+playwright>=1.49,<2.0
+
+# Development utilities
+pytest>=8.3,<9.0
+ruff>=0.8,<1.0
