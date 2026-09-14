@@ -1,104 +1,236 @@
-# AI_WIshList
-## Local product-search assistant
+# Wishwise — local AI product discovery & wishlists
 
-This project will run its API and agent workflow locally. Ollama runs the local
-language model; the Python application uses LangGraph to coordinate product
-search, extraction, validation, and presentation to the web app.
+A local-first web application: accounts, regional product search, comparison of
+merchant offers, and private wishlists. Product cards arrive progressively after
+validation. No paid model API is required.
 
-### 1. Create the CUDA environment
+## Run on Windows
 
-From Command Prompt or PowerShell in this folder, run:
-
-```bat
-scripts\setup_conda_env.bat
-```
-
-The script creates a Conda environment named `local-product-search`, installs
-the official CUDA 12.8 PyTorch wheel set, installs the project libraries, and
-prints a GPU verification result. It uses Python 3.11.
-
-To remove and build the environment again:
-
-```bat
-scripts\setup_conda_env.bat --recreate
-```
-
-### 2. Install Ollama and a small model
-
-Install [Ollama for Windows](https://ollama.com/download/windows), then open a
-new PowerShell window. The default model is `llama3.2:3b`. Llama does not have
-an exact 2B model in this family; this 3B version remains suitable for an RTX
-4060 with 8 GB VRAM:
-
-```bat
-ollama pull llama3.2:3b
-```
-
-Or, after Ollama is installed, let the setup script download it:
-
-```bat
-scripts\setup_conda_env.bat --pull-model
-```
-
-To install the Chromium runtime used to render JavaScript shop pages, run once:
-
-```bat
-scripts\setup_conda_env.bat --install-browser
-```
-
-Or use the dedicated script after setup:
-
-```bat
-scripts\install_browser.bat
-```
-
-For a smaller near-2B alternative with good structured tool calls, choose Qwen
-3 1.7B instead:
-
-```bat
-scripts\setup_conda_env.bat --model qwen3:1.7b --pull-model
-```
-
-### 3. Activate the environment
-
-```bat
-conda activate local-product-search
-```
-
-### 4. Run the product-search GUI
-
-Start the local FastAPI server:
+Already have the environment from the previous version? Stop the server with
+Ctrl+C and restart:
 
 ```bat
 scripts\run_app.bat
 ```
 
-Open **http://127.0.0.1:8000** in your browser. Enter a product name, brand,
-model, colour, or size, then select the shopping region. The selected market
-guides the web search toward its local language and shops. The app will show only candidates for which it could
-read a product price from the shop page, along with the product photo and the
-link back to the shop.
+Open **http://127.0.0.1:8000**, then choose **Create an account**. Passwords require
+at least 10 characters. The server stays in the terminal; Ctrl+C stops it.
+SQLite initializes automatically. There are no default passwords or demo accounts.
 
-Offers stream into the page one by one as individual product pages finish
-verification. They are provisional until the final semantic and regional check;
-any generic or out-of-region cards are then removed automatically.
+Fresh install: install Miniconda and [Ollama](https://ollama.com/download/windows),
+then use a terminal where `conda` is available:
 
-### Workflow
-
-```text
-Keyboard input
-  → Query planner agent (local Ollama model; deterministic fallback)
-  → Store discovery agent (finds up to 15 relevant shop domains)
-  → Parallel store-search agents (each searches one store via search_store_catalog)
-  → Product extraction agent (extract_product tool, parallel requests)
-  → Chromium fallback for pages whose price is rendered by JavaScript
-  → Semantic validation agent (local Llama rejects generic and out-of-region offers)
-  → Ranking agent
-  → Browser cards: photo, price, shop, availability, link
+```bat
+scripts\setup_conda_env.bat --pull-model --install-browser
+scripts\run_app.bat
 ```
 
-The first version uses public web search and Schema.org/OpenGraph metadata
-provided by shop pages. It is intentionally defensive: it rejects private
-network URLs, limits page downloads, and does not use page text as instructions
-for the model. For a production commercial service, replace or supplement the
-search tool with licensed merchant or affiliate APIs for the shops you support.
+Setup uses Python 3.11, PyTorch 2.10.0 with CUDA 12.8 wheels and `qwen3:4b`.
+For an existing installation, run `ollama pull qwen3:4b` once before restarting.
+The app uses a 4096-token context with thinking disabled. `scripts\run_qwen.bat`
+explicitly selects Qwen even if an older `.env` selects Llama. To keep Llama,
+set `OLLAMA_MODEL=llama3.2:3b` in `.env` instead; it is not uninstalled.
+Ollama runs inference in its own runtime: PyTorch's CUDA installation does not
+control Ollama's GPU use. Its usual Windows path is
+`%LOCALAPPDATA%\Programs\Ollama\ollama.exe`; setup also checks that path.
+
+Optional: copy `.env.example` to `.env` with your editor. Existing `.env` files
+are never overwritten. To change models, download the model and set `OLLAMA_MODEL`
+to the same name. Setup's `--model` flag selects the download, not application config.
+
+Batch scripts set `PYTHONNOUSERSITE=1` so unrelated packages in the Windows user
+profile cannot override Conda. If upgrading on another PC, rerun setup to install
+all dependencies in that environment. HTTPS uses a system trust context (or an
+explicit `SSL_CERT_FILE`/`SSL_CERT_DIR`) and never disables certificate validation.
+See [HTTPX SSL configuration](https://www.python-httpx.org/advanced/ssl/).
+
+## Features
+
+- Registration/login/logout with revocable cookie sessions; persistent private
+  wishlists and per-account search history.
+- Create/rename/delete lists, save products, add unpriced ideas, edit notes and
+  target prices, and remove items.
+- Regional discovery of up to 15 stores, bounded parallel per-store searches,
+  structured HTTP extraction and Chromium rendering fallback.
+- SSE product updates, progress, source links, warnings, cancellation and heartbeats.
+- Product details with shop links, images when supplied, stock status, observation
+  timestamps and minima **per currency**, never an invalid EUR-versus-CZK comparison.
+- Grouping by GTIN, brand + manufacturer part number (MPN), or exact normalized
+  title, preserving explicit size/colour. MPNs are displayed in comparison cards.
+  Missing identifiers still limit confidence in cross-shop variant matching.
+- Scoped Schema.org and Shoptet microdata extraction can produce multiple items
+  from one category. Where metadata is absent, bounded product-card navigation
+  opens individual pages. A separate price-source link identifies category-based
+  observations instead of pretending the price came from the detail page.
+
+## AI architecture
+
+Both JSON search and the streaming UI execute the **same compiled LangGraph**.
+
+```text
+Authenticated request (Pydantic)
+  -> RAG (LangChain BaseRetriever, SQLite FTS5/BM25)
+  -> Local ChatOllama -> structured QueryPlan
+  -> Plan-content validation / deterministic fallback
+  -> Regional discovery -> search_web tool
+  -> Parallel per-store workers
+       -> search_store_catalog tool
+       -> structured page extraction / Chromium
+       -> ProductOffer schema + URL/price/currency validation
+       -> structured LLM assessment + deterministic evidence gates
+       -> persist offer, group product, emit SSE immediately
+  -> Final results and persisted run history
+```
+
+LangChain provides real tools, documents, a retriever and `ChatOllama`. LangGraph
+owns workflow execution and custom streaming. Store workers are bounded Python
+workers **inside a graph node**, not independent GPU models. Model calls are
+serialized to avoid exhausting laptop GPU memory.
+
+### RAG and structured generation
+
+Accepted public product observations form the retrieval corpus. SQLite FTS5/BM25
+retrieves region-specific documents with source URLs and timestamps for subsequent
+query planning. This is **lexical RAG**, not vector/embedding retrieval or
+fine-tuning. A fresh database correctly has no retrieved sources. Private account
+details and wishlist notes never enter this shared corpus.
+
+Historical prices are not re-emitted as new search results; pages must be fetched
+again. Saved observations older than 24 hours remain visible but do not determine
+the current minimum. Prices are decimal strings in storage, numeric in API output.
+
+Ollama JSON-schema output generates `QueryPlan` and single-candidate `ProductMatch`
+decisions. The model does not generate/copy source URLs or decide prices/regions.
+Pydantic checks types, extra fields and finite numeric prices. Additional gates
+reject invented numeric query constraints, accessories instead of main products,
+generic pages, regional mismatches and missing original-query identity/variant terms. Failures
+produce explicit warnings and a deterministic fallback. The LLM never invents
+prices or executes SQL. Category aliases supplement the model; they are not a
+claim that lexical matching understands every product category.
+
+Search discovery URLs (not prices) are cached in memory for five minutes, scoped
+by query, region and provider settings. Product pages are still fetched on every
+search. Set `SEARCH_CACHE_TTL_SECONDS=0` to disable this. Relevant historical RAG
+source URLs are refetched first, avoiding needless rediscovery of a known page.
+Category navigation filters product links before applying the page budget.
+Search providers are queried independently with bounded concurrency, then fused
+and ranked for the selected region **before** truncation. A failing provider does
+not discard another provider's results. Discovery rank is preserved when selecting
+stores; repeated shopping keywords do not boost a merchant.
+
+Purchase searches reject rental/day-rate listings. Offer URLs use the same
+structured Offer record as the price (not a category's `#product_1` identifier).
+Known tracking parameters are removed without removing product/variant query
+parameters. Corrected source observations update/remove earlier streamed cards.
+
+## Tests and diagnostics
+
+### Visual discovery and quick search
+
+The discovery screen includes six illustrated categories with editable example
+queries, region selection, streamed progress and elapsed time. Categories collapse
+after starting a search and can be reopened with **Explore categories**. Illustrations
+are local SVGs, not fictitious merchant offers or external image dependencies.
+
+The UI defaults to **Quick search**: exact query (no planner LLM round trip), one
+discovery query, at most eight stores, two candidate pages per store and two
+browser-fallback candidates. **More stores** retains the existing deeper workflow.
+Both modes use the same price, semantic, region and product validation. Quick mode
+trades coverage for less work; it cannot guarantee a fixed internet response time.
+The 60-second quick extraction budget is a scheduling budget, not a hard wall-clock
+deadline for already-running network/browser calls. API clients may pass
+`search_mode: "quick"`; their backward-compatible default is `"thorough"`.
+
+Result filters work immediately on products already found: photo presence,
+currency, price limit and sorting. A price limit requires a currency; cross-currency
+prices are not silently compared or converted. These are display filters, not
+promises that the entire market has been searched under that budget.
+
+```bat
+scripts\evaluate_live.bat --queries logitech --stores 15 --mode quick --cold-search
+scripts\evaluate_live.bat --queries logitech --stores 15 --mode thorough --cold-search
+```
+
+### Run checks
+
+```bat
+scripts\check_app.bat
+scripts\test_app.bat
+scripts\test_app.bat -m browser
+scripts\check_app.bat --live "whiskey" --region czechia --stores 5
+scripts\evaluate_search.bat --strict
+scripts\evaluate_search.bat --models llama3.2:3b qwen3:4b
+scripts\evaluate_search.bat --models qwen3:4b --repeat 2 --strict
+scripts\evaluate_live.bat --queries lagavulin logitech sony lego coffee ssd camera shoes --repeat 2 --stores 15 --cold-search
+```
+
+Default tests cover account isolation, CSRF/sessions, wishlist persistence,
+currency minima, staleness, RAG isolation, real graph streaming, slow-store
+independence, extraction and semantic regression cases. The browser test launches
+real Chromium and a local API; shop results use fixtures. It covers registration,
+search, comparison, saving, re-login and a mobile viewport. Screenshots go to
+`data/ui-tests/`.
+
+`--live` calls the actual local model and public websites, prints graph events and
+uses a temporary database. Its result count is not a deterministic assertion.
+`--verbose` prints full source offer records. `constraints.txt` records tested
+direct dependency versions; it is not a complete transitive lockfile.
+The included GitHub Actions workflow runs lint and unit/browser tests if the
+repository is later pushed to GitHub; local use needs no remote service.
+
+See [evaluation guide](evals/README.md) for labelled datasets, false-positive and
+false-negative reports, cold versus cached discovery, and live result snapshots.
+A zero-result live search fails the evaluation; it is never called perfect precision.
+The current frozen corpus has 120 hand-labelled candidate cases, plus six reduced
+observed source-metadata fixtures and whitespace/case/arrival-order regression tests.
+Passing these does not imply complete or stable internet coverage.
+
+## API and code
+
+Machine-readable API schema: `/openapi.json`.
+
+| Route | Purpose |
+| --- | --- |
+| `/api/auth/register`, `/api/auth/login`, `/api/auth/me`, `/api/auth/logout` | Account/session |
+| `/api/wishlists` and nested `/{id}/items` | Private lists/items |
+| `/api/products/{id}?region=czechia` | Grouped offers and minima |
+| `/api/search/stream` | Authenticated POST returning SSE |
+| `/api/search` | Same graph returning JSON |
+| `/api/history` | Current user's search runs |
+| `/api/health`, `/api/regions` | Model status and available markets |
+
+Authenticated mutations require the session cookie and `X-CSRF-Token` returned
+by login or `/api/auth/me`. The frontend handles these automatically.
+
+`app/graph.py`: orchestration; `agents.py`: model/discovery logic; `tools/`:
+adapters; `retrieval.py`: RAG; `schemas.py`/`matching.py`: validation;
+`database.py`/`catalog.py`/`auth.py`/`wishlists.py`: persistence and API;
+`static/`: responsive vanilla-JavaScript GUI.
+
+## Data, security and honest limits
+
+The database is `data/wishlist.sqlite3`. Keep it private: it contains account and
+wishlist data. Stop the server before copying the entire `data` folder as a
+backup. Databases/screenshots are excluded from Git. Passwords are scrypt hashes;
+raw passwords and session tokens are not stored. Sessions use HttpOnly/SameSite
+cookies, CSRF checks, login throttling and ownership checks. Shop HTML is never
+inserted into the UI. Network tools check public URLs/redirects, block private
+browser requests and bound download size/concurrency.
+
+This is a **local application**, not a production-hardening claim. Public hosting
+still needs HTTPS (`SECURE_COOKIES=true`), egress controls against DNS rebinding,
+distributed throttling, identity/email recovery, backups, monitoring and security
+review. Email verification, password recovery, scheduled price alerts and a durable
+job queue are not included. Run history is persisted; LangGraph checkpoint/resume
+is not implemented.
+
+Search engines can ignore regional hints. European market discovery also filters
+country domains, potentially omitting international `.com` merchants. A storefront
+region does **not** prove delivery to your address. Chromium does not bypass
+CAPTCHAs, login/age gates or bot protection. Some shops expose no usable metadata.
+
+Search is bounded, not exhaustive; it cannot enumerate every internet product or
+guarantee the absolute lowest market price. Delivery, checkout changes and special
+discounts may be missing. Merchant metadata/identifiers may be wrong. Compare the
+exact variant and confirm at the shop. For dependable commercial coverage, add
+authorized merchant/feed/search APIs through the tool adapters.
