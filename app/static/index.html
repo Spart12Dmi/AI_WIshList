@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wishwise — A little closer to what you love.</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/discover.css">
+</head>
+<body>
+  <header class="topbar"><a class="brand" href="#discover"><span class="brand-mark">w.</span> wishwise</a>
+    <nav id="nav" hidden><button data-tab="discover" class="nav-link active">Discover</button><button data-tab="wishlists" class="nav-link">My wishlists</button><button data-tab="history" class="nav-link">Recent searches</button></nav>
+    <div class="account" id="account" hidden><span id="username"></span><button id="logout" class="quiet">Sign out</button></div>
+  </header>
+  <main>
+    <section id="auth-view" class="auth-layout">
+      <div class="welcome"><span class="eyebrow">A LITTLE MORE YOU.</span><h1>Good taste.<br>Great finds.<br><em>All yours.</em></h1><p>A place for your next favourite things. Discover products, compare real offers, and build a wishlist that feels like you.</p><div class="welcome-art" aria-hidden="true"><img src="/static/categories/headphones.svg" alt=""><img src="/static/categories/sneakers.svg" alt=""><img src="/static/categories/coffee.svg" alt=""></div><div class="welcome-note"><span>01 / DISCOVER</span><span>02 / COMPARE</span><span>03 / KEEP</span></div></div>
+      <form id="auth-form" class="auth-card"><p class="eyebrow">YOUR PERSONAL COLLECTION</p><h2 id="auth-title">Welcome back.</h2><p class="muted" id="auth-intro">Sign in to pick up where you left off.</p>
+        <label id="name-field" hidden>Your name<input id="auth-name" autocomplete="name" maxlength="80"></label>
+        <label>Email address<input id="auth-email" type="email" required autocomplete="email" maxlength="254" placeholder="you@example.com"></label>
+        <label>Password<input id="auth-password" type="password" required minlength="10" maxlength="128" autocomplete="current-password" placeholder="At least 10 characters"></label>
+        <p id="auth-error" class="error" role="alert"></p><button id="auth-submit" class="primary">Sign in</button>
+        <button id="auth-toggle" type="button" class="text-button">New here? Create an account</button>
+        <p class="fine">Your account and wishlists are stored on this computer.</p>
+      </form>
+    </section>
+    <section id="workspace" hidden>
+      <section id="discover-view">
+        <div class="hero"><div class="hero-copy"><p class="eyebrow"><span class="hero-spark" aria-hidden="true">✳</span> THE ART OF FINDING YOUR FAVOURITES</p><h1>Good things.<br><em>Worth finding.</em></h1><p class="muted">A little inspiration. A better price.<br>A wishlist that’s entirely you.</p><a href="#search-form" class="hero-link">Find your next favourite <span aria-hidden="true">↗</span></a></div><div class="hero-collection" aria-hidden="true"><span class="collection-orbit"></span><div class="collection-card collection-back"><img src="/static/categories/coffee.svg" alt=""><span>Your daily ritual</span></div><div class="collection-card collection-front"><span class="collection-heart">♡</span><img src="/static/categories/headphones.svg" alt=""><span>A little escape.</span></div><div class="collection-tag">Find it. Love it. Keep it. <span>✳</span></div></div><span class="hero-edition" aria-hidden="true">YOUR PERSONAL COLLECTION / 01</span></div>
+        <button id="browse-toggle" type="button" class="browse-toggle" aria-expanded="false" aria-controls="browse-categories" hidden>Explore categories ↓</button>
+        <section id="browse-categories" class="browse-categories" aria-labelledby="category-heading"><div class="category-heading"><h2 id="category-heading">What are you looking for?</h2><span>Pick a category to get started</span></div><div id="category-grid" class="category-grid"></div><div id="category-ideas" class="category-ideas" hidden><div><strong id="category-title"></strong><p class="fine">Choose an example or enter your own product below. These are search ideas, not offers.</p></div><div id="category-suggestions" class="suggestion-chips"></div><button id="clear-category" class="quiet" type="button" aria-label="Clear category">×</button></div></section>
+        <div class="search-panel"><form id="search-form" class="search-bar"><span class="search-symbol" aria-hidden="true">⌕</span><label for="query" class="sr-only">Product to find</label><input id="query" type="search" minlength="2" maxlength="200" required placeholder="Try “Sony WH-1000XM5” or a product you love"><label for="region" class="sr-only">Market</label><select id="region"></select><button class="primary" id="search-button">Find products ↗</button><button type="button" id="cancel-search" class="quiet" hidden>Stop</button></form><div class="search-options"><fieldset class="mode-switch"><legend class="sr-only">Search depth</legend><label><input type="radio" name="search-mode" value="quick" checked>Quick search</label><label><input type="radio" name="search-mode" value="thorough">More stores</label></fieldset><span id="mode-hint" class="fine">Up to 8 stores · fewer pages, same offer checks</span></div></div>
+        <div class="search-meta"><span id="status" role="status" aria-live="polite">A name, a model, or an idea. Start anywhere.</span><span id="model-status" class="pill">Local AI</span></div>
+        <div id="search-progress" class="search-progress" hidden><span class="activity-dot"></span><span id="progress-label">Finding stores</span><span id="search-elapsed">0s</span><span id="store-progress">Results appear as we find them</span></div>
+        <details class="search-details" id="search-details" hidden><summary>Search progress & sources</summary><div id="pipeline" class="chips"></div><div id="stores-list" class="chips"></div><div id="sources"></div><div id="warnings" class="warnings"></div></details>
+        <div class="section-heading results-heading"><div><p class="eyebrow">FOUND FOR YOU</p><h2>Discoveries <span id="result-count" class="result-count">0</span></h2></div><div id="result-filters" class="result-filters"><label>Sort by<select id="result-sort"><option value="recommended">Discovery order</option><option value="price-low">Lowest price</option><option value="price-high">Highest price</option><option value="stores">Most store offers</option></select></label><label>Currency<select id="filter-currency"><option value="">All currencies</option></select></label><label>Max. price<input id="filter-budget" type="number" min="0" step="1" placeholder="Any" aria-describedby="filter-note"></label><label class="photo-filter"><input id="filter-photos" type="checkbox">With photos</label></div></div><p id="filter-note" class="fine">Filters apply to found offers. Choose a currency to filter by price.</p>
+        <section id="results" class="grid" aria-live="polite"><div class="empty"><span>✧</span><h3>Something good is out there.</h3><p>Search above to see products and compare offers.</p></div></section>
+      </section>
+      <section id="wishlists-view" hidden><div class="view-heading"><div><p class="eyebrow">KEEP THE GOOD ONES</p><h1>Your <em>collections.</em></h1></div><button id="create-list" class="primary">+ New wishlist</button></div><div id="list-tabs" class="chips list-tabs"></div><div id="list-actions" class="list-actions"></div><section id="wishlist-items" class="grid"></section></section>
+      <section id="history-view" hidden><div class="view-heading"><div><p class="eyebrow">PICK UP WHERE YOU LEFT OFF</p><h1>Recent <em>searches.</em></h1></div></div><div id="history-list"></div></section>
+    </section>
+  </main>
+  <footer><span class="brand">wishwise</span><span>Find it. Compare it. Keep it.</span><span>Prices exclude delivery unless stated by the shop.</span></footer>
+  <dialog id="product-dialog"><button class="dialog-close" id="close-product" aria-label="Close product">×</button><div id="product-detail"></div></dialog>
+  <dialog id="edit-dialog"><form id="edit-form"><h2 id="edit-title"></h2><div id="edit-fields"></div><p id="edit-error" class="error" role="alert"></p><div class="actions"><button type="button" id="close-edit" class="quiet">Cancel</button><button class="primary">Save</button></div></form></dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <script src="/static/app.js"></script>
+</body></html>
