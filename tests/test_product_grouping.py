@@ -13,9 +13,9 @@ def offer(title, host="first", price=1700):
             "currency": "CZK", "shop": host}
 
 
-def phone_offer(title, host="first", price=29990):
+def phone_offer(title, host="first", price=29990, **kwargs):
     return {"title": title, "url": f"https://{host}.cz/iphone", "price": price,
-            "currency": "CZK", "shop": host}
+            "currency": "CZK", "shop": host, **kwargs}
 
 
 @pytest.mark.parametrize("title", ["Lagavulin 16 y.o. 0,7 l 43%", "New Lagavulin 16 years old 70cl 43% product",
@@ -87,16 +87,16 @@ def test_age_spelling_also_matches_search_query():
     assert query_evidence("Lagavulin 16 y o", "Lagavulin 16 years old 70cl 43%")
 
 
-def test_concrete_model_search_groups_offer_dimensions_for_comparison(client):
-    query = "Apple iPhone 17 Pro"
-    first = save_offer(phone_offer("Apple iPhone 17 Pro 256GB Silver"), "czechia", query=query)
-    second = save_offer(phone_offer("Apple iPhone 17 Pro 256GB Blue", "second", 28990), "czechia", query=query)
-    third = save_offer(phone_offer("Apple iPhone 17 Pro 512GB Orange", "third", 33990), "czechia", query=query)
+def test_reviewed_canonical_identity_groups_offer_dimensions_for_comparison(client):
+    first = save_offer(phone_offer("Apple iPhone 17 Pro 256GB Silver", canonical_product="Apple iPhone 17 Pro 256GB Silver"), "czechia")
+    second = save_offer(phone_offer("Apple iPhone 17 Pro 256GB Blue", "second", 28990, canonical_product="Apple iPhone 17 Pro 256GB Blue"), "czechia")
+    third = save_offer(phone_offer("Apple iPhone 17 Pro 512GB Orange", "third", 33990, canonical_product="Apple iPhone 17 Pro 512GB"), "czechia")
 
-    assert first["id"] == second["id"] == third["id"]
-    assert third["offer_count"] == 3
-    assert third["minimum_prices"] == {"CZK": 28990}
-    assert {item["shop"] for item in third["offers"]} == {"first", "second", "third"}
+    assert first["id"] == second["id"] != third["id"]
+    assert second["offer_count"] == 2
+    assert third["offer_count"] == 1
+    assert second["minimum_prices"] == {"CZK": 28990}
+    assert {item["shop"] for item in second["offers"]} == {"first", "second"}
 
 
 def test_broad_category_requests_do_not_collapse_every_listing(client):
@@ -105,7 +105,20 @@ def test_broad_category_requests_do_not_collapse_every_listing(client):
     assert first["id"] != second["id"]
 
 
-def test_measurement_only_numbers_do_not_trigger_model_family_grouping(client):
-    first = save_offer(phone_offer("Acme 15 inch laptop Silver", price=1000), "czechia", query="15 inch laptop")
-    second = save_offer(phone_offer("Acme 15 inch laptop Blue", "second", 1100), "czechia", query="15 inch laptop")
+def test_canonical_identity_cannot_drop_requested_numbers(client):
+    first = save_offer(phone_offer("Acme 15 inch laptop Silver", price=1000, canonical_product="Acme laptop"), "czechia", query="15 inch laptop")
+    second = save_offer(phone_offer("Acme 15 inch laptop Blue", "second", 1100, canonical_product="Acme laptop"), "czechia", query="15 inch laptop")
+    assert first["id"] != second["id"]
+
+
+def test_canonical_grouping_is_not_tied_to_a_product_category(client):
+    first = save_offer(phone_offer("Northwind brewer black", canonical_product="Northwind brewer black"), "czechia")
+    second = save_offer(phone_offer("Northwind brewer silver", "second", 1100, canonical_product="Northwind brewer silver"), "czechia")
+    assert first["id"] == second["id"]
+    assert second["offer_count"] == 2
+
+
+def test_similar_canonical_labels_with_different_numeric_variants_stay_separate(client):
+    first = save_offer(phone_offer("Northwind brewer 256 black", canonical_product="Northwind brewer 256 black"), "czechia")
+    second = save_offer(phone_offer("Northwind brewer 512 silver", "second", 1100, canonical_product="Northwind brewer 512 silver"), "czechia")
     assert first["id"] != second["id"]

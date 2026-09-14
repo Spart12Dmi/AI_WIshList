@@ -96,6 +96,27 @@ def test_classifier_does_not_generate_or_receive_source_urls(monkeypatch):
     assert all(url not in prompt for prompt in calls)
 
 
+def test_semantic_classifier_exposes_canonical_identity_for_grouping(monkeypatch):
+    result = ProductMatch(relevant=True, reason="Same product family", canonical_product="Acme brewer")
+
+    monkeypatch.setattr(agents.httpx, "get", lambda *a, **kw: SimpleNamespace(raise_for_status=lambda: None))
+    monkeypatch.setattr(
+        agents,
+        "ChatOllama",
+        lambda **kwargs: SimpleNamespace(
+            with_structured_output=lambda *args, **kwargs: SimpleNamespace(invoke=lambda prompt: result)
+        ),
+    )
+    url = "https://shop.cz/brewer"
+    accepted, warnings = agents.SemanticValidationAgent().run(
+        [{"url": url, "title": "Acme brewer black", "price": 100, "currency": "CZK", "shop": "Shop"}],
+        "Acme brewer",
+        get_region("czechia"),
+    )
+    assert not warnings
+    assert accepted[0]["canonical_product"] == "Acme brewer"
+
+
 def test_live_checker_does_not_accept_zero_results_or_wrong_brand():
     case = {"required": [r"\blagavulin\b"], "currency": "CZK"}
     assert violations_for(case, []) == ["zero_results"]
