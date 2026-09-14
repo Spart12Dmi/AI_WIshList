@@ -199,6 +199,11 @@ class QueryPlannerAgent:
                                                   anchors=anchors, reviewed=True)
                         if len(checked) > 1:
                             approved.append(candidate)
+                    else:
+                        self.rejected_variants.append({
+                            "query": candidate,
+                            "reason": "semantic review rejected",
+                        })
                 except Exception as error:
                     self.rejected_variants.append({"query": candidate, "reason": str(error)[:160]})
             self.variants = search_variants(query, region, approved, reviewed=True)
