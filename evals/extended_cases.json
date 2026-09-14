@@ -1,0 +1,526 @@
+{
+  "version": 2,
+  "description": "52 new manually labelled boundary cases across product families. Synthetic titles/prices/URLs; not merchant data. Inspected during development, not an unseen holdout. Some category/accessory distinctions require semantic judgement; rules are a baseline, not ground truth.",
+  "cases": [
+    {
+      "id": "ssd-capacity",
+      "split": "challenge",
+      "query": "Samsung 990 PRO 1TB",
+      "title": "Samsung SSD 990 PRO 1 TB",
+      "relevant": true,
+      "expected": true,
+      "reason": "Storage spacing is equivalent",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "ssd-wrong-capacity",
+      "split": "challenge",
+      "query": "Samsung 990 PRO 1TB",
+      "title": "Samsung SSD 990 PRO 2 TB",
+      "relevant": false,
+      "expected": false,
+      "reason": "Wrong capacity",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "ssd-heatsink",
+      "split": "challenge",
+      "query": "Samsung 990 PRO 1TB",
+      "title": "Replacement heatsink for Samsung 990 PRO 1TB",
+      "relevant": false,
+      "expected": false,
+      "reason": "Heatsink is not the SSD",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "router-model",
+      "split": "challenge",
+      "query": "TP-Link Archer AX55",
+      "title": "TP Link Archer AX55 router",
+      "relevant": true,
+      "expected": true,
+      "reason": "Model punctuation is equivalent",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "router-antenna",
+      "split": "challenge",
+      "query": "TP-Link Archer AX55",
+      "title": "Replacement antenna for TP-Link Archer AX55",
+      "relevant": false,
+      "expected": false,
+      "reason": "Antenna is not the router",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "phone-plus",
+      "split": "challenge",
+      "query": "Samsung S24 Plus",
+      "title": "Samsung S24+ 256 GB",
+      "relevant": true,
+      "expected": true,
+      "reason": "Plus symbol and word denote the same variant",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "phone-missing-plus",
+      "split": "challenge",
+      "query": "Samsung S24+",
+      "title": "Samsung S24 256 GB",
+      "relevant": false,
+      "expected": false,
+      "reason": "Explicit Plus variant is missing",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "camera-battery",
+      "split": "challenge",
+      "query": "Canon EOS R50",
+      "title": "Battery for Canon EOS R50 camera",
+      "relevant": false,
+      "expected": false,
+      "reason": "Battery is not the requested camera",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "camera-battery-requested",
+      "split": "challenge",
+      "query": "Canon EOS R50 battery",
+      "title": "Battery for Canon EOS R50 camera",
+      "relevant": true,
+      "expected": true,
+      "reason": "Battery explicitly requested",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "vacuum-filter",
+      "split": "challenge",
+      "query": "Dyson V15",
+      "title": "Replacement filter for Dyson V15",
+      "relevant": false,
+      "expected": false,
+      "reason": "Filter is not the vacuum",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "vacuum-filter-requested",
+      "split": "challenge",
+      "query": "Dyson V15 filter",
+      "title": "Replacement filter for Dyson V15",
+      "relevant": true,
+      "expected": true,
+      "reason": "Filter explicitly requested",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "console-model",
+      "split": "challenge",
+      "query": "Nintendo Switch OLED",
+      "title": "Nintendo Switch OLED console white",
+      "relevant": true,
+      "expected": true,
+      "reason": "Requested console model",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "console-dock",
+      "split": "challenge",
+      "query": "Nintendo Switch OLED",
+      "title": "Replacement dock for Nintendo Switch OLED",
+      "relevant": false,
+      "expected": false,
+      "reason": "Dock is not the console",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "lego-instructions",
+      "split": "challenge",
+      "query": "LEGO 10307",
+      "title": "Building instructions for LEGO 10307",
+      "relevant": false,
+      "expected": false,
+      "reason": "Instructions are not the building set",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "lego-instructions-requested",
+      "split": "challenge",
+      "query": "LEGO 10307 instructions",
+      "title": "Building instructions for LEGO 10307",
+      "relevant": true,
+      "expected": true,
+      "reason": "Instructions explicitly requested",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "lego-lighting",
+      "split": "challenge",
+      "query": "LEGO 10307",
+      "title": "LED lighting kit for LEGO 10307",
+      "relevant": false,
+      "expected": false,
+      "reason": "Lighting add-on is not the building set",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "drink-pack-equal",
+      "split": "challenge",
+      "query": "Coca Cola 6x330ml",
+      "title": "Coca-Cola 6 × 330 ml",
+      "relevant": true,
+      "expected": true,
+      "reason": "Pack multiplier formatting is equivalent",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "drink-pack-single",
+      "split": "challenge",
+      "query": "Coca Cola 6x330ml",
+      "title": "Coca-Cola 1 × 330 ml",
+      "relevant": false,
+      "expected": false,
+      "reason": "Wrong pack count",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "drink-pack-double",
+      "split": "challenge",
+      "query": "Coca Cola 6x330ml",
+      "title": "Coca-Cola 12 × 330 ml",
+      "relevant": false,
+      "expected": false,
+      "reason": "Wrong pack count",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "cream-translation",
+      "split": "challenge",
+      "query": "Nivea cream 200ml",
+      "title": "Nivea krém 200 ml",
+      "relevant": true,
+      "expected": true,
+      "reason": "Translated product category",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "cream-wrong-category",
+      "split": "challenge",
+      "query": "Nivea cream 200ml",
+      "title": "Nivea shower gel 200 ml",
+      "relevant": false,
+      "expected": false,
+      "reason": "Different product category",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "cleanser-translation",
+      "split": "challenge",
+      "query": "CeraVe cleanser 473ml",
+      "title": "CeraVe čisticí gel 473 ml",
+      "relevant": true,
+      "expected": true,
+      "reason": "Translated cleanser category",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "shoes-size",
+      "split": "challenge",
+      "query": "Nike Air Max 90 EU 42",
+      "title": "Nike Air Max 90 velikost EU 42",
+      "relevant": true,
+      "expected": true,
+      "reason": "Exact shoe size",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "shoes-wrong-size",
+      "split": "challenge",
+      "query": "Nike Air Max 90 EU 42",
+      "title": "Nike Air Max 90 velikost EU 43",
+      "relevant": false,
+      "expected": false,
+      "reason": "Wrong shoe size",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "shoes-laces",
+      "split": "challenge",
+      "query": "Nike Air Max 90",
+      "title": "Replacement laces for Nike Air Max 90",
+      "relevant": false,
+      "expected": false,
+      "reason": "Laces are not shoes",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "shoes-laces-requested",
+      "split": "challenge",
+      "query": "Nike Air Max 90 laces",
+      "title": "Replacement laces for Nike Air Max 90",
+      "relevant": true,
+      "expected": true,
+      "reason": "Laces explicitly requested",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "shoes-colour",
+      "split": "challenge",
+      "query": "Adidas Samba black",
+      "title": "adidas Samba černé",
+      "relevant": true,
+      "expected": true,
+      "reason": "Translated colour",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "drill-translation",
+      "split": "challenge",
+      "query": "Bosch drill",
+      "title": "Bosch akumulátorová vrtačka GSR 12V-15",
+      "relevant": true,
+      "expected": true,
+      "reason": "Translated drill category",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "drill-bits",
+      "split": "challenge",
+      "query": "Bosch drill",
+      "title": "Bosch drill bits set",
+      "relevant": false,
+      "expected": false,
+      "reason": "Bits are not the drill",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "drill-bit-requested",
+      "split": "challenge",
+      "query": "Bosch drill bits",
+      "title": "Bosch vrtáky do betonu",
+      "relevant": true,
+      "expected": true,
+      "reason": "Translated explicitly requested bits",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "new-brand-model",
+      "split": "challenge",
+      "query": "Makita DHP484",
+      "title": "Makita DHP484 aku vrtačka",
+      "relevant": true,
+      "expected": true,
+      "reason": "Previously unseen exact brand/model",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "new-brand-battery",
+      "split": "challenge",
+      "query": "Makita DHP484",
+      "title": "Replacement battery for Makita DHP484",
+      "relevant": false,
+      "expected": false,
+      "reason": "Battery is not the tool",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "laptop-translation",
+      "split": "challenge",
+      "query": "Lenovo laptop",
+      "title": "Notebook Lenovo IdeaPad Slim 3",
+      "relevant": true,
+      "expected": true,
+      "reason": "Notebook and laptop are equivalent categories",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "laptop-sleeve",
+      "split": "challenge",
+      "query": "Lenovo laptop",
+      "title": "Protective sleeve for Lenovo laptop",
+      "relevant": false,
+      "expected": false,
+      "reason": "Sleeve is not the laptop",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "laptop-sleeve-requested",
+      "split": "challenge",
+      "query": "Lenovo laptop sleeve",
+      "title": "Protective sleeve for Lenovo laptop",
+      "relevant": true,
+      "expected": true,
+      "reason": "Sleeve explicitly requested",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "tablet-decimal",
+      "split": "challenge",
+      "query": "Apple iPad 10.9",
+      "title": "Apple iPad 10,9 inch",
+      "relevant": true,
+      "expected": true,
+      "reason": "Decimal separator is equivalent",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "tablet-decimal-reversed",
+      "split": "challenge",
+      "query": "Apple iPad 10.9",
+      "title": "Apple iPad 9.10 inch",
+      "relevant": false,
+      "expected": false,
+      "reason": "Different decimal size; numbers cannot be compared as an unordered set",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "cable-length",
+      "split": "challenge",
+      "query": "USB C cable 2m",
+      "title": "USB-C kabel 200 cm",
+      "relevant": true,
+      "expected": true,
+      "reason": "Equivalent length units",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "cable-wrong-length",
+      "split": "challenge",
+      "query": "USB C cable 2m",
+      "title": "USB-C kabel 20 cm",
+      "relevant": false,
+      "expected": false,
+      "reason": "Wrong cable length",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "tv-translation",
+      "split": "challenge",
+      "query": "Samsung TV 55 inch",
+      "title": "Samsung televize 55 palců",
+      "relevant": true,
+      "expected": true,
+      "reason": "Translated TV category and inch unit",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "tv-wrong-size",
+      "split": "challenge",
+      "query": "Samsung TV 55 inch",
+      "title": "Samsung TV 65 inch",
+      "relevant": false,
+      "expected": false,
+      "reason": "Wrong screen size",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "tv-remote",
+      "split": "challenge",
+      "query": "Samsung TV 55 inch",
+      "title": "Replacement remote control for Samsung TV 55 inch",
+      "relevant": false,
+      "expected": false,
+      "reason": "Remote is not the television",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "grinder-brush",
+      "split": "challenge",
+      "query": "coffee grinder",
+      "title": "Coffee grinder cleaning brush",
+      "relevant": false,
+      "expected": false,
+      "reason": "Cleaning accessory is not the grinder",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "accessory-with-accessory",
+      "split": "challenge",
+      "query": "Sony WH1000XM5",
+      "title": "Protective case for Sony WH1000XM5 with cable",
+      "relevant": false,
+      "expected": false,
+      "reason": "A with-clause must not disguise an accessory listing",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "main-with-accessory",
+      "split": "challenge",
+      "query": "Sony WH1000XM5",
+      "title": "Sony WH1000XM5 headphones with protective case",
+      "relevant": true,
+      "expected": true,
+      "reason": "Main product bundled with an accessory is relevant",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "whiskey-chocolate",
+      "split": "challenge",
+      "query": "whiskey",
+      "title": "Whiskey flavoured chocolates 200g",
+      "relevant": false,
+      "expected": false,
+      "reason": "Flavoured confectionery is not the drink",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "whiskey-candle",
+      "split": "challenge",
+      "query": "whiskey",
+      "title": "Whiskey scented candle",
+      "relevant": false,
+      "expected": false,
+      "reason": "Scented candle is not the drink",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "coffee-perfume",
+      "split": "challenge",
+      "query": "coffee",
+      "title": "Coffee scented perfume 50ml",
+      "relevant": false,
+      "expected": false,
+      "reason": "Perfume is not coffee",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "monitor-model",
+      "split": "challenge",
+      "query": "Dell U2723QE",
+      "title": "Dell UltraSharp U2723QE monitor",
+      "relevant": true,
+      "expected": true,
+      "reason": "Previously unseen exact display model",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "monitor-wrong-model",
+      "split": "challenge",
+      "query": "Dell U2723QE",
+      "title": "Dell UltraSharp U2724D monitor",
+      "relevant": false,
+      "expected": false,
+      "reason": "Wrong display model",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "protein-mass",
+      "split": "challenge",
+      "query": "Optimum Nutrition whey 2.27kg",
+      "title": "Optimum Nutrition whey 2270 g",
+      "relevant": true,
+      "expected": true,
+      "reason": "Equivalent decimal mass",
+      "provenance": "synthetic-boundary-v2"
+    },
+    {
+      "id": "protein-wrong-mass",
+      "split": "challenge",
+      "query": "Optimum Nutrition whey 2.27kg",
+      "title": "Optimum Nutrition whey 908 g",
+      "relevant": false,
+      "expected": false,
+      "reason": "Wrong package mass",
+      "provenance": "synthetic-boundary-v2"
+    }
+  ]
+}

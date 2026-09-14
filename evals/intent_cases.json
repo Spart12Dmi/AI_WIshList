@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "description": "16 hand-labelled purchase/rental and URL boundary cases. One observed public title; other cases synthetic. Development regressions, not an unseen holdout.",
+  "cases": [
+    {"id":"camera-observed-rental","split":"regression","query":"Canon EOS R50","title":"Canon EOS R50 + RF-S 18-45 mm IS STM - Půjčovna - Begadget.cz","url":"https://www.begadget.cz/canon-eos-r50-rf-s-18-45-mm-is-stm-pujcovna/","relevant":false,"expected":false,"reason":"Rental rate is not a camera purchase price","provenance":"observed-public-search-2026-09-11; price is synthetic"},
+    {"id":"camera-rental-url-only","split":"challenge","query":"Canon EOS R50","title":"Canon EOS R50","url":"https://example.cz/pujcovna/canon-eos-r50","relevant":false,"expected":false,"reason":"Product URL discloses rental omitted from title"},
+    {"id":"camera-buy-kit","split":"challenge","query":"Canon EOS R50","title":"Canon EOS R50 + RF-S 18-45 mm IS STM","relevant":true,"expected":true,"reason":"Camera and included lens are a relevant purchase bundle"},
+    {"id":"camera-buy-body","split":"challenge","query":"Canon EOS R50","title":"Canon EOS R50 tělo černé","relevant":true,"expected":true,"reason":"Actual camera body"},
+    {"id":"camera-english-rental","split":"challenge","query":"Canon EOS R50","title":"Canon EOS R50 camera rental","relevant":false,"expected":false,"reason":"Do not compare rental with purchase"},
+    {"id":"camera-german-rental","split":"challenge","query":"Canon EOS R50","title":"Canon EOS R50 mieten","relevant":false,"expected":false,"reason":"German rental marker"},
+    {"id":"camera-czech-rental","split":"challenge","query":"Canon EOS R50","title":"Pronájem Canon EOS R50","relevant":false,"expected":false,"reason":"Czech rental marker with accents"},
+    {"id":"drill-rental","split":"challenge","query":"Bosch GSB 18V","title":"Bosch GSB 18V hire","relevant":false,"expected":false,"reason":"Power tool rental is not purchase"},
+    {"id":"lego-rental","split":"challenge","query":"LEGO 10307","title":"LEGO 10307 Eiffelova věž - půjčovna","relevant":false,"expected":false,"reason":"Rental also applies outside cameras"},
+    {"id":"laptop-rental","split":"challenge","query":"MacBook Air M3","title":"MacBook Air M3 rental","relevant":false,"expected":false,"reason":"Laptop monthly rental is not buying price"},
+    {"id":"rental-explicit","split":"challenge","query":"Canon EOS R50 rental","title":"Canon EOS R50 rental","relevant":true,"expected":true,"reason":"Explicit rental intent must not be confused with purchase intent"},
+    {"id":"rental-request-sale","split":"challenge","query":"Canon EOS R50 rental","title":"Canon EOS R50 body","relevant":false,"expected":false,"reason":"Purchase does not satisfy explicit rental request"},
+    {"id":"camera-tracked-pdp","split":"challenge","query":"Canon EOS R50","title":"Canon EOS R50 body","url":"https://example.cz/canon-eos-r50?utm_source=search&srsltid=abc","relevant":true,"expected":true,"reason":"Tracking parameters do not change product identity"},
+    {"id":"camera-tracked-homepage","split":"challenge","query":"Canon EOS R50","title":"Canon EOS R50 body","url":"https://example.cz/?utm_source=search","relevant":true,"expected":false,"reason":"Tracking alone does not turn homepage into PDP"},
+    {"id":"camera-query-pdp","split":"challenge","query":"Canon EOS R50","title":"Canon EOS R50 body","url":"https://example.cz/?product_id=50&utm_source=search","relevant":true,"expected":true,"reason":"Retain actual product route query parameter"},
+    {"id":"camera-wrong-number","split":"challenge","query":"Canon EOS R50","title":"Canon EOS R5 body","relevant":false,"expected":false,"reason":"Rental fixes must not relax model identity"}
+  ]
+}

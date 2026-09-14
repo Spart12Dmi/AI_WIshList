@@ -1,0 +1,10 @@
+[
+  {"id":"lagavulin","query":"lagavulin","region":"czechia","currency":"CZK","required":["\\blagavulin\\b"]},
+  {"id":"logitech","query":"Logitech G502","region":"czechia","currency":"CZK","required":["\\blogitech\\b","\\bg502\\b"]},
+  {"id":"sony","query":"Sony WH-1000XM5","region":"czechia","currency":"CZK","required":["\\bsony\\b","\\bwh[- ]?1000xm5\\b"]},
+  {"id":"lego","query":"LEGO 10307","region":"czechia","currency":"CZK","required":["\\blego\\b","\\b10307\\b"],"forbidden_url_patterns":["lego(?:-[a-z]+)*-(?!10307\\b)\\d{5}","intelino"]},
+  {"id":"coffee","query":"Baratza Encore","region":"czechia","currency":"CZK","required":["\\bbaratza\\b","\\bencore\\b"]},
+  {"id":"ssd","query":"Samsung 990 PRO","region":"czechia","currency":"CZK","required":["\\bsamsung\\b","\\b990\\b","\\bpro\\b"]},
+  {"id":"camera","query":"Canon EOS R50","region":"czechia","currency":"CZK","required":["\\bcanon\\b","\\beos\\b","\\br50\\b"]},
+  {"id":"shoes","query":"Nike Air Max 90","region":"czechia","currency":"CZK","required":["\\bnike\\b","\\bair\\b","\\bmax\\b","\\b90\\b"],"variant_code_url_pattern":"([a-z]{2}\\d{4}-\\d{3})(?:/|$)"}
+]
