@@ -145,6 +145,51 @@ def test_rendered_product_fallback_reads_currency_from_price_wrapper(monkeypatch
     assert offer["currency"] == "CZK"
 
 
+def test_rendered_product_fallback_prefers_labelled_primary_price(monkeypatch):
+    """A marketplace table price wins over later related-item cards."""
+    monkeypatch.setattr(browser_search, "is_public_http_url", lambda url: True)
+    html = """
+    <head><meta property="og:type" content="website"></head>
+    <h1>PlayStation 5 Pro 2TB</h1>
+    <table><tr><td>Price:</td><td><b>25 000 CZK</b></td></tr></table>
+    <div class="related"><div class="inzeratycena">13 500 CZK</div></div>
+    """
+    offer = browser_search.parse_rendered_product_page(
+        html, "https://merchant.cz/playstation-5-pro", query="PlayStation 5 Pro", region="cz-cs"
+    )
+    assert offer["accepted"] is True
+    assert offer["price"] == 25000
+
+
+def test_rendered_product_fallback_rejects_negotiable_placeholder(monkeypatch):
+    monkeypatch.setattr(browser_search, "is_public_http_url", lambda url: True)
+    html = """
+    <h1>PlayStation 5 Pro</h1>
+    <p class="description">Cena dohodou, pouze seriózní nabídky.</p>
+    <table><tr><td>Cena:</td><td><b>1 Kč</b></td></tr></table>
+    """
+    offer = browser_search.parse_rendered_product_page(
+        html, "https://market.cz/ps5-pro", query="PlayStation 5 Pro", region="cz-cs"
+    )
+    assert offer["accepted"] is False
+
+
+def test_product_pages_reject_editorial_open_graph_type(monkeypatch):
+    monkeypatch.setattr(browser_search, "is_public_http_url", lambda url: True)
+    html = """
+    <head>
+      <meta property="og:type" content="article">
+      <meta property="product:price:amount" content="20290">
+      <meta property="product:price:currency" content="CZK">
+    </head>
+    <h1>PlayStation 5 Pro launch news</h1>
+    """
+    assert browser_search.parse_rendered_product_page(
+        html, "https://news.cz/article/ps5", query="PlayStation 5 Pro", region="cz-cs"
+    )["accepted"] is False
+    assert web_search.parse_product_page(html, "https://news.cz/article/ps5")["accepted"] is False
+
+
 def test_store_selection_preserves_upstream_relevance_instead_of_seo_word_counts():
     results = [
         {"url": "https://relevant.cz/lego-10307", "title": "LEGO 10307", "snippet": "17999 CZK"},

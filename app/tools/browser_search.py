@@ -12,6 +12,7 @@ from app.config import get_settings
 from app.query_expansion import matches_query
 from app.regions import REGIONS
 from app.tools.web_search import (
+    NON_ACTIONABLE_PRICE_PATTERNS,
     NON_PRODUCT_PAGE_PATTERNS,
     _meta_content,
     _normalise_currency,
@@ -132,6 +133,9 @@ def parse_rendered_product_page(
     )
     if not title or NON_PRODUCT_PAGE_PATTERNS.search(title):
         return {"accepted": False, "reason": "The rendered page did not expose a product heading."}
+    page_type = (_meta_content(soup, "og:type") or "").casefold()
+    if page_type in {"article", "newsarticle", "blogposting", "blog"}:
+        return {"accepted": False, "reason": "The rendered page identifies itself as editorial content."}
     if query and not matches_query(query, title, queries):
         return {"accepted": False, "reason": "The rendered product heading did not match the query."}
 
@@ -158,13 +162,42 @@ def parse_rendered_product_page(
         '[itemprop="price"]', '[data-price]', '[data-product-price]',
         ".price-current", ".current-price", ".product-price", ".price",
         '[class*="price"]', '[id*="price"]', '[class*="amount"]', '[id*="amount"]',
+        # Storefronts frequently localise the word "price" in their CSS
+        # classes (for example Czech Bazoš uses ``inzeratycena``).  These
+        # language-neutral semantic hints are still scoped to the element
+        # carrying the amount, so we never parse arbitrary page text.
+        '[class*="cena"]', '[id*="cena"]', '[class*="preis"]', '[id*="preis"]',
+        '[class*="prix"]', '[id*="prix"]', '[class*="precio"]', '[id*="precio"]',
+        '[class*="preco"]', '[id*="preco"]', '[class*="цена"]', '[id*="цена"]',
     )
+    # Some marketplaces expose a human-readable ``Price: 1 299 Kč`` label
+    # without giving the amount element a price-related class.  Read only
+    # compact labelled rows/blocks and put them before recommendation-card
+    # classes (which otherwise may be encountered first in the document).
+    price_label = re.compile(
+        r"\b(?:price|cena|preis|prix|precio|pre[cç]o|цена|cost|amount|valor)\b", re.I
+    )
+    labelled_nodes: list[tuple[Any, str]] = []
+    for node in soup.find_all(("tr", "dl", "div", "p", "li", "span")):
+        node_text = " ".join(node.get_text(" ", strip=True).split())
+        if not node_text or len(node_text) > 320:
+            continue
+        match = price_label.search(node_text)
+        if match:
+            labelled_nodes.append((node, node_text[match.end() :].strip()))
+    labelled_nodes.sort(key=lambda item: len(item[0].get_text(" ", strip=True)))
     price_node = None
-    for node in soup.select(", ".join(selectors)):
+    candidate_nodes = [(node, tail) for node, tail in labelled_nodes]
+    candidate_nodes.extend((node, None) for node in soup.select(", ".join(selectors)))
+    seen_nodes: set[int] = set()
+    for node, labelled_tail in candidate_nodes:
+        if id(node) in seen_nodes:
+            continue
+        seen_nodes.add(id(node))
         classes = " ".join(node.get("class", [])) + " " + str(node.get("id", ""))
         if re.search(r"(?:old|was|before|shipping|delivery|installment|monthly|unit)[-_ ]?price", classes, re.I):
             continue
-        text = " ".join(node.get_text(" ", strip=True).split())
+        text = labelled_tail or " ".join(node.get_text(" ", strip=True).split())
         if not text:
             continue
         price = parse_price(node.get("content") or node.get("data-price") or text)
@@ -197,6 +230,8 @@ def parse_rendered_product_page(
     if not price_node:
         return {"accepted": False, "reason": "The rendered page did not expose a current price and currency."}
     price, currency = price_node
+    if price <= 1 and NON_ACTIONABLE_PRICE_PATTERNS.search(" ".join(soup.stripped_strings)):
+        return {"accepted": False, "reason": "The displayed amount is a negotiable placeholder, not a current price."}
     image_url = _meta_content(soup, "og:image", "twitter:image", "twitter:image:src")
     if image_url:
         image_url = urljoin(page_url, image_url)

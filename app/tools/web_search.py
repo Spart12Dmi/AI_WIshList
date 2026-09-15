@@ -31,6 +31,15 @@ NON_PRODUCT_PAGE_PATTERNS = re.compile(
     r"\b(price guide|pricing guide|complete price|whisk(?:e)?y prices|review|blog|article|news|recipe|history|top \d+|best \d+)\b",
     re.IGNORECASE,
 )
+# Classified listings often publish a nominal ``1`` amount while asking
+# buyers to negotiate.  Such a value is not a comparable current offer.
+# Keep this language-agnostic and require the explicit price label plus a
+# negotiation phrase; ordinary low-cost products remain valid.
+NON_ACTIONABLE_PRICE_PATTERNS = re.compile(
+    r"\b(?:price|cena|preis|prix|precio|pre[cç]o|цена)\b.{0,40}"
+    r"\b(?:negotiable|on request|dohodou|nab[ií]dn[eě]te|make an offer|contact)\b",
+    re.IGNORECASE | re.DOTALL,
+)
 # Some DDGS providers intermittently return an empty list (or are unavailable
 # in a particular network).  Keep a small provider-independent fallback set so
 # one outage cannot turn an otherwise valid product query into a zero-result
@@ -338,6 +347,8 @@ def parse_product_page(html: str, page_url: str, discovered_title: str = "") -> 
     price = structured.get("price") or metadata_price
     if price is None:
         return {"accepted": False, "reason": "The page did not expose a machine-readable price."}
+    if price <= 1 and NON_ACTIONABLE_PRICE_PATTERNS.search(" ".join(soup.stripped_strings)):
+        return {"accepted": False, "reason": "The displayed amount is a negotiable placeholder, not a current price."}
 
     page_title = soup.title.get_text(" ", strip=True) if soup.title else ""
     heading = soup.find("h1")
@@ -352,6 +363,9 @@ def parse_product_page(html: str, page_url: str, discovered_title: str = "") -> 
     title = re.sub(r"\s+", " ", str(title or "")).strip()
     if not title:
         return {"accepted": False, "reason": "The page did not expose a product title."}
+    page_type = (_meta_content(soup, "og:type") or "").casefold()
+    if page_type in {"article", "newsarticle", "blogposting", "blog"}:
+        return {"accepted": False, "reason": "The page identifies itself as editorial content."}
     if NON_PRODUCT_PAGE_PATTERNS.search(title):
         return {
             "accepted": False,
