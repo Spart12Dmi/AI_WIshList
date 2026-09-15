@@ -132,14 +132,21 @@ def search_and_validate(state):
     """Workers search then extract each store; fast stores do not wait for slower ones."""
     settings = get_settings()
     quick = state.get("search_mode") == "quick"
-    page_limit = min(settings.per_store_product_limit, 2) if quick else settings.per_store_product_limit
+    # Quick mode still needs enough candidates to survive a blocked/category
+    # page.  Three pages keeps it bounded while allowing a second product URL
+    # when the first search hit is editorial or stale.
+    page_limit = min(settings.per_store_product_limit, 3) if quick else settings.per_store_product_limit
     region = get_region(state["region"])
     stop = state.get("control") or threading.Event()
     deadline = time.monotonic() + (
-        min(settings.search_timeout_seconds, 60) if quick else settings.search_timeout_seconds
+        min(settings.search_timeout_seconds, 90) if quick else settings.search_timeout_seconds
     )
     events = queue.Queue()
-    browser_budget = min(settings.browser_candidate_limit, 2) if quick else settings.browser_candidate_limit
+    # Browser fallback is the only way to read JS storefronts (and is often
+    # needed for Czech marketplaces).  A two-page cap made Quick mode return
+    # zero merely because its first two candidates were blocked.  Keep a
+    # bounded per-search budget, but allow one attempt per discovered store.
+    browser_budget = min(settings.browser_candidate_limit, 8) if quick else settings.browser_candidate_limit
     budget_lock = threading.Lock()
     warnings = list(state["warnings"])
     products = {}

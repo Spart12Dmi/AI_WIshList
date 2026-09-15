@@ -345,7 +345,7 @@ def parse_product_page(html: str, page_url: str, discovered_title: str = "") -> 
     # A broad CSS price match can be shipping, an old price, or another product.
     # Only explicit structured product prices enter the catalogue.
     price = structured.get("price") or metadata_price
-    if price is None:
+    if price is None or price <= 0:
         return {"accepted": False, "reason": "The page did not expose a machine-readable price."}
     if price <= 1 and NON_ACTIONABLE_PRICE_PATTERNS.search(" ".join(soup.stripped_strings)):
         return {"accepted": False, "reason": "The displayed amount is a negotiable placeholder, not a current price."}

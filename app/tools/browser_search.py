@@ -225,6 +225,8 @@ def parse_rendered_product_page(
             )
         if not currency or (expected and currency not in expected):
             continue
+        if price <= 0:
+            continue
         price_node = (price, currency)
         break
     if not price_node:
