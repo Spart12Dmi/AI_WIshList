@@ -157,7 +157,7 @@ def parse_rendered_product_page(
     selectors = (
         '[itemprop="price"]', '[data-price]', '[data-product-price]',
         ".price-current", ".current-price", ".product-price", ".price",
-        '[class*="price"]', '[id*="price"]',
+        '[class*="price"]', '[id*="price"]', '[class*="amount"]', '[id*="amount"]',
     )
     price_node = None
     for node in soup.select(", ".join(selectors)):
@@ -170,10 +170,20 @@ def parse_rendered_product_page(
         price = parse_price(node.get("content") or node.get("data-price") or text)
         if price is None:
             continue
+        # Currency is often rendered in a sibling span (for example an
+        # ``amount`` node next to ``currency``).  Inspect only the nearest
+        # price-like wrapper, never arbitrary page text.
+        wrapper_text = ""
+        parent = node.parent
+        if parent is not None:
+            parent_classes = " ".join(parent.get("class", [])) + " " + str(parent.get("id", ""))
+            if re.search(r"(?:price|amount|cost|money|value)", parent_classes, re.I):
+                wrapper_text = " ".join(parent.get_text(" ", strip=True).split())
+        currency_text = text + " " + wrapper_text
         currency = _normalise_currency(node.get("data-currency") or node.get("content-currency"))
         if not currency:
             for code, marker in currency_markers.items():
-                if marker.search(text):
+                if marker.search(currency_text):
                     currency = code
                     break
         if not currency:

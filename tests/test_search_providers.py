@@ -134,6 +134,17 @@ def test_rendered_product_fallback_does_not_use_old_or_shipping_price(monkeypatc
     assert offer["accepted"] is False
 
 
+def test_rendered_product_fallback_reads_currency_from_price_wrapper(monkeypatch):
+    monkeypatch.setattr(browser_search, "is_public_http_url", lambda url: True)
+    html = "<h1>Example product</h1><div class='cost'><span class='amount'>29990</span><span class='currency'>CZK</span></div>"
+    offer = browser_search.parse_rendered_product_page(
+        html, "https://merchant.cz/product", query="Example product", region="cz-cs"
+    )
+    assert offer["accepted"] is True
+    assert offer["price"] == 29990
+    assert offer["currency"] == "CZK"
+
+
 def test_store_selection_preserves_upstream_relevance_instead_of_seo_word_counts():
     results = [
         {"url": "https://relevant.cz/lego-10307", "title": "LEGO 10307", "snippet": "17999 CZK"},
