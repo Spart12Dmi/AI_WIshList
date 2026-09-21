@@ -1,4 +1,8 @@
 [
+  {"id":"console","query":"PlayStation 5 Pro","region":"czechia","currency":"CZK","required":["\\b(?:playstation\\s*5|ps5)\\b","\\bpro\\b"]},
+  {"id":"console_short","query":"PS5","region":"czechia","currency":"CZK","required":["\\b(?:playstation\\s*5|ps5)\\b"],"forbidden_title_patterns":["\\b(?:Minecraft|Labyrinth|ANOMALITH|NHL|FIFA|EA Sports|Wolverine|Split Fiction|Spider-Man|Plague Tale|F1|Kingdom Come|Mafia|Resident Evil|Grand Theft Auto|Call of Duty|Hogwarts|The Last of Us|007|COOLER|ventilátor|chlazení)\\b"]},
+  {"id":"vacuum","query":"Dyson V15 Detect","region":"czechia","currency":"CZK","required":["\\bdyson\\b","\\bv15\\b","\\bdetect\\b"]},
+  {"id":"watch","query":"Garmin Forerunner 265","region":"czechia","currency":"CZK","required":["\\bgarmin\\b","\\bforerunner\\b","\\b265\\b"]},
   {"id":"lagavulin","query":"lagavulin","region":"czechia","currency":"CZK","required":["\\blagavulin\\b"]},
   {"id":"logitech","query":"Logitech G502","region":"czechia","currency":"CZK","required":["\\blogitech\\b","\\bg502\\b"]},
   {"id":"sony","query":"Sony WH-1000XM5","region":"czechia","currency":"CZK","required":["\\bsony\\b","\\bwh[- ]?1000xm5\\b"]},

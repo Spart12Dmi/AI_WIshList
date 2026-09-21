@@ -85,7 +85,7 @@ def test_live_checker_catches_same_offer_in_different_cards():
     product = {
         "title": "Canon EOS R50",
         "minimum_prices": {"CZK": 15000},
-        "offers": [{"title": "Canon EOS R50", "url": "https://shop.cz/canon"}],
+        "offers": [{"title": "Canon EOS R50", "url": "https://shop.cz/canon", "price": 15000}],
     }
     problems = violations_for(
         {"required": ["Canon", "R50"], "currency": "CZK"},

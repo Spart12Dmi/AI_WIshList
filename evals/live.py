@@ -29,6 +29,9 @@ def violations_for(case, products):
         for title in titles:
             if not all(re.search(pattern, title, re.I) for pattern in case["required"]):
                 problems.append("wrong_brand_or_model: " + title)
+            for pattern in case.get("forbidden_title_patterns", []):
+                if re.search(pattern, title, re.I):
+                    problems.append("wrong_product_type: " + title)
             if re.search(
                 r"\b(rental|rent|hire|půjčovna|pujcovna|pronájem|pronajem|mieten|verleih)\b", title, re.I
             ):
@@ -41,6 +44,12 @@ def violations_for(case, products):
                 problems.append("offer_in_multiple_product_cards: " + offer["url"])
             owners[offer["url"]] = owner
             parsed = urlsplit(offer["url"])
+            if re.search(r"/(?:blog|articles?|news|clanek|reviews?)/", parsed.path, re.I):
+                problems.append("editorial_product_link: " + offer["url"])
+            if re.search(r"/(?:category|categories|collections?|inzeraty|search|hledat)/", parsed.path, re.I):
+                problems.append("catalogue_product_link: " + offer["url"])
+            if not isinstance(offer.get("price"), (float, int)) or offer["price"] <= 0:
+                problems.append("invalid_price: " + offer["url"])
             if offer.get("mpn"):
                 variants.add(offer["mpn"].casefold())
             elif case.get("variant_code_url_pattern"):
@@ -65,6 +74,10 @@ def violations_for(case, products):
                     problems.append("contradictory_product_link: " + offer["url"])
         if len(variants) > 1:
             problems.append("conflicting_manufacturer_variants: " + product["title"])
+        for pattern in case.get("edition_patterns", []):
+            flags = {bool(re.search(pattern, offer["title"], re.I)) for offer in product["offers"]}
+            if len(flags) > 1:
+                problems.append("mixed_product_editions: " + product["title"])
         if set(product["minimum_prices"]) != {case["currency"]}:
             problems.append("missing_or_wrong_currency_minimum: " + product["title"])
     return list(dict.fromkeys(problems))
@@ -160,10 +173,13 @@ def main():
                 "discovery_cache_ttl_seconds": settings.search_cache_ttl_seconds,
                 "store_limit": min(settings.store_limit, 8) if args.mode == "quick" else settings.store_limit,
                 "search_backends": settings.search_backends,
-                "browser_candidate_limit": min(settings.browser_candidate_limit, 2)
+                "browser_candidate_limit": min(settings.browser_candidate_limit, 8)
                 if args.mode == "quick"
                 else settings.browser_candidate_limit,
                 "count": len(products),
+                "offer_count": len({offer["url"] for p in products for offer in p["offers"]}),
+                "merchant_count": len({urlsplit(offer["url"]).hostname for p in products for offer in p["offers"]}),
+                "extraction_failures": [e["payload"] for e in events if e["event"] == "extraction" and not e["payload"]["offers"]],
                 "first_product_seconds": first,
                 "elapsed_seconds": round(time.monotonic() - started, 3),
                 "violations": sorted(set(problems)),
@@ -174,7 +190,8 @@ def main():
                 json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
             )
             summaries.append(summary)
-            print("RESULT", json.dumps(summary, ensure_ascii=False), flush=True)
+            print("RESULT", json.dumps({key: value for key, value in summary.items()
+                                        if key not in {"extraction_failures", "urls"}}, ensure_ascii=False), flush=True)
     groups = defaultdict(list)
     for result in summaries:
         groups[result["query_id"]].append(result)

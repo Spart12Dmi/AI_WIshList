@@ -1,0 +1,188 @@
+{
+  "version": 1,
+  "description": "Semantic object-versus-compatibility challenge. Requires the local model; not a claim that lexical rules solve intent.",
+  "cases": [
+    {
+      "id": "ps5-game",
+      "category": "gaming",
+      "split": "challenge",
+      "query": "PS5",
+      "title": "Labyrinth of the Demon King (PS5)",
+      "expected": false,
+      "relevant": false,
+      "reason": "Compatibility platform is not the sold console",
+      "variants": [],
+      "provenance": "live-failure-derived-and-hand-labelled-2026-09-16"
+    },
+    {
+      "id": "ps5-cooling",
+      "category": "gaming",
+      "split": "challenge",
+      "query": "PS5",
+      "title": "Ventilátor chlazení USB COOLER PS5 Slim",
+      "expected": false,
+      "relevant": false,
+      "reason": "Cooling accessory is not the requested console",
+      "variants": [],
+      "provenance": "live-failure-derived-and-hand-labelled-2026-09-16"
+    },
+    {
+      "id": "ps5-console",
+      "category": "gaming",
+      "split": "challenge",
+      "query": "PS5",
+      "title": "Sony PlayStation 5 Slim Digital Edition",
+      "expected": true,
+      "relevant": true,
+      "reason": "Reviewed expanded model name",
+      "variants": [
+        "PlayStation 5"
+      ],
+      "provenance": "live-failure-derived-and-hand-labelled-2026-09-16"
+    },
+    {
+      "id": "grinder-part",
+      "category": "coffee",
+      "split": "challenge",
+      "query": "Baratza Encore",
+      "title": "Baratza Encore replacement burr",
+      "expected": false,
+      "relevant": false,
+      "reason": "Spare part is not the grinder",
+      "variants": [],
+      "provenance": "live-failure-derived-and-hand-labelled-2026-09-16"
+    },
+    {
+      "id": "grinder-device",
+      "category": "coffee",
+      "split": "challenge",
+      "query": "Baratza Encore",
+      "title": "Baratza Encore coffee grinder",
+      "expected": true,
+      "relevant": true,
+      "reason": "Complete requested grinder",
+      "variants": [],
+      "provenance": "live-failure-derived-and-hand-labelled-2026-09-16"
+    },
+    {
+      "id": "camera-battery",
+      "category": "camera",
+      "split": "challenge",
+      "query": "Canon EOS R50",
+      "title": "Battery charger compatible with Canon EOS R50",
+      "expected": false,
+      "relevant": false,
+      "reason": "Charger is not the camera",
+      "variants": [],
+      "provenance": "live-failure-derived-and-hand-labelled-2026-09-16"
+    },
+    {
+      "id": "camera-device",
+      "category": "camera",
+      "split": "challenge",
+      "query": "Canon EOS R50",
+      "title": "Canon EOS R50 mirrorless camera body",
+      "expected": true,
+      "relevant": true,
+      "reason": "Requested camera",
+      "variants": [],
+      "provenance": "live-failure-derived-and-hand-labelled-2026-09-16"
+    },
+    {
+      "id": "mouse-feet",
+      "category": "computer",
+      "split": "challenge",
+      "query": "Logitech G502",
+      "title": "Replacement feet for Logitech G502",
+      "expected": false,
+      "relevant": false,
+      "reason": "Replacement part is not the mouse",
+      "variants": [],
+      "provenance": "live-failure-derived-and-hand-labelled-2026-09-16"
+    },
+    {
+      "id": "mouse-device",
+      "category": "computer",
+      "split": "challenge",
+      "query": "Logitech G502",
+      "title": "Logitech G502 HERO gaming mouse",
+      "expected": true,
+      "relevant": true,
+      "reason": "Requested mouse family",
+      "variants": [],
+      "provenance": "live-failure-derived-and-hand-labelled-2026-09-16"
+    },
+    {
+      "id": "vacuum-filter",
+      "category": "home",
+      "split": "challenge",
+      "query": "Dyson V15",
+      "title": "Filtr kompatibilní s Dyson V15",
+      "expected": false,
+      "relevant": false,
+      "reason": "Filter is not the vacuum cleaner",
+      "variants": [],
+      "provenance": "live-failure-derived-and-hand-labelled-2026-09-16"
+    },
+    {
+      "id": "vacuum-device",
+      "category": "home",
+      "split": "challenge",
+      "query": "Dyson V15",
+      "title": "Dyson V15 Detect vysavač",
+      "expected": true,
+      "relevant": true,
+      "reason": "Requested vacuum",
+      "variants": [],
+      "provenance": "live-failure-derived-and-hand-labelled-2026-09-16"
+    },
+    {
+      "id": "watch-band",
+      "category": "wearables",
+      "split": "challenge",
+      "query": "Garmin Forerunner 265",
+      "title": "Řemínek pro Garmin Forerunner 265",
+      "expected": false,
+      "relevant": false,
+      "reason": "Watchband is not the watch",
+      "variants": [],
+      "provenance": "live-failure-derived-and-hand-labelled-2026-09-16"
+    },
+    {
+      "id": "watch-device",
+      "category": "wearables",
+      "split": "challenge",
+      "query": "Garmin Forerunner 265",
+      "title": "Garmin Forerunner 265 GPS hodinky",
+      "expected": true,
+      "relevant": true,
+      "reason": "Requested watch",
+      "variants": [],
+      "provenance": "live-failure-derived-and-hand-labelled-2026-09-16"
+    },
+    {
+      "id": "headphone-cushion",
+      "category": "audio",
+      "split": "challenge",
+      "query": "Sony WH-1000XM5",
+      "title": "Náušníky pro Sony WH-1000XM5",
+      "expected": false,
+      "relevant": false,
+      "reason": "Cushions are not headphones",
+      "variants": [],
+      "provenance": "live-failure-derived-and-hand-labelled-2026-09-16"
+    },
+    {
+      "id": "headphone-device",
+      "category": "audio",
+      "split": "challenge",
+      "query": "Sony WH-1000XM5",
+      "title": "Sony WH-1000XM5 bezdrátová sluchátka",
+      "expected": true,
+      "relevant": true,
+      "reason": "Requested headphones",
+      "variants": [],
+      "provenance": "live-failure-derived-and-hand-labelled-2026-09-16"
+    }
+  ]
+}

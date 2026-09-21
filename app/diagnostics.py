@@ -18,6 +18,7 @@ def main():
     parser.add_argument("--live", metavar="QUERY", help="Run a real search in a temporary database")
     parser.add_argument("--region", default="czechia")
     parser.add_argument("--stores", type=int, default=4, choices=range(1, 16))
+    parser.add_argument("--mode", choices=["quick", "thorough"], default="quick")
     parser.add_argument("--verbose", action="store_true", help="Print complete offer records")
     args = parser.parse_args()
     settings = get_settings()
@@ -45,7 +46,7 @@ def main():
     from app.graph import product_search_graph
     from app.schemas import SearchRequest
 
-    request = SearchRequest(query=args.live, region=args.region)
+    request = SearchRequest(query=args.live, region=args.region, search_mode=args.mode)
     # Does not create test users or mix smoke-search data with real wishlists.
     with tempfile.TemporaryDirectory(prefix="wishwise-smoke-") as temporary:
         settings.database_path = str(Path(temporary) / "smoke.sqlite3")
