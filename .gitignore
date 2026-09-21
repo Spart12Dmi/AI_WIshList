@@ -149,6 +149,9 @@ activemq-data/
 
 # Environments
 .env
+.env.*
+!.env.example
+!.env.*.example
 .envrc
 .venv
 env/
@@ -194,12 +197,22 @@ cython_debug/
 #   Learn more at https://abstra.io/docs
 .abstra/
 
-# Visual Studio Code
-#   Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore 
-#   that can be found at https://github.com/github/gitignore/blob/main/Global/VisualStudioCode.gitignore
-#   and can be added to the global gitignore or merged into this file. However, if you prefer, 
-#   you could uncomment the following to ignore the entire vscode folder
-# .vscode/
+# Local editor preferences (not required to run or test the app).
+/.vscode/
+/.idea/
+*.swp
+*.swo
+
+# Operating-system metadata and temporary files.
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.tmp
+
+# Generated browser-test reports; retain tests and evaluation datasets.
+/playwright-report/
+/test-results/
+/blob-report/
 # Temporary file for partial code execution
 tempCodeRunnerFile.py
 
@@ -216,6 +229,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+# Local runtime data, databases, evaluation output, screenshots, and post drafts.
+# Curated datasets in evals/ and application assets remain versioned.
 data/
 *.sqlite3
 *.sqlite3-wal
