@@ -220,3 +220,15 @@ data/
 *.sqlite3
 *.sqlite3-wal
 *.sqlite3-shm
+
+# Local demo-video tooling and generated media (keep on disk, never commit).
+/scripts/create_demo_video.py
+/scripts/create_demo_video.bat
+/scripts/cut_demo_video.py
+/data/videos/
+/data/video_tools/
+*.mp4
+*.webm
+*.mov
+*.avi
+*.mkv
