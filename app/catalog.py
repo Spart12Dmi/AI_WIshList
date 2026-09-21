@@ -30,6 +30,10 @@ def _canonical_key(offer, query=None):
     # numeric safety check from discarding an otherwise useful identity.
     value = re.sub(r"(?<=\d)[:/](?=\d)", "", value)
     canonical = words(value)
+    # Cosmetic attributes can be removed only with explicit source evidence;
+    # do not guess that a differing model/edition token is a colour.
+    if offer.get("color"):
+        canonical -= words(offer["color"])
     if len(canonical) < 2:
         return None
     reference = words(offer.get("title", "")) | words(query or "")
@@ -50,14 +54,7 @@ def _canonical_tokens(key):
 
 
 def _similar_canonical_product(db, key, offer):
-    """Find a nearby reviewed identity when colour/wording differs by shop.
-
-    Canonical labels are model output, so exact equality is too brittle. A
-    conservative overlap check is universal: it requires at least two shared
-    normalized identity tokens and identical numeric tokens from the observed
-    titles. This groups cosmetic wording differences without merging capacities,
-    model numbers or unrelated short labels.
-    """
+    """Resolve normalized identity equivalence without dropping edition tokens."""
     current = _canonical_tokens(key)
     if len(current) < 3:
         return None
@@ -75,9 +72,11 @@ def _similar_canonical_product(db, key, offer):
         candidate_numbers = {token for token in words(row["title"]) if any(char.isdigit() for char in token)}
         if current_numbers != candidate_numbers:
             continue
-        shared = len(current & candidate)
-        score = shared / min(len(current), len(candidate))
-        if shared >= 2 and score >= (2 / 3) and score > best_score:
+        # The old 2/3 overlap merged a base model with its Pro/Plus/other
+        # edition. Cosmetic values are handled using explicit colour metadata
+        # upstream; unmatched identity tokens cannot be discarded here.
+        score = 1.0 if current == candidate else 0.0
+        if score > best_score:
             best, best_score = row, score
     return best
 

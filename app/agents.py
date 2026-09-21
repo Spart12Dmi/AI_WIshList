@@ -89,6 +89,10 @@ def select_relevant_stores(results: list[dict[str, str]], limit: int) -> list[di
         title = result.get("title", "")
         if NON_STORE_RESULT_PATTERNS.search(title):
             continue
+        # Editorial route types are not merchant identities. This check is
+        # independent of the product name and does not blacklist entire shops.
+        if re.search(r"/(?:articles?|news|blog|clanek|clanky|magazin|reviews?)/", urlsplit(result["url"]).path, re.I):
+            continue
         # Preserve the metasearch relevance/fusion order. Re-sorting by counts of
         # words like 'buy' and 'shop' used to promote SEO-heavy pages above actual
         # product hits, discarding the more useful stores when applying the limit.
@@ -137,6 +141,8 @@ class QueryPlannerAgent:
                         "Translate or paraphrase the complete request; never replace it with a broad parent class, "
                         "neighbouring item, audience qualifier or use-case that the user did not request. "
                         "Return anchors quoting each brand, model, code or proper name exactly from the input. "
+                        "Expand a widely recognized abbreviation to its full product name when unambiguous; "
+                        "a rewrite must be genuinely different, never repeat the original in alternatives. "
                         "Do NOT use generic product types or descriptions as anchors: these must remain translatable. "
                         "At least one alternative should use the requested market's language when it differs from the input. "
                         "Preserve units, negations and all requested attributes. Do not supply URLs or site operators. "
@@ -159,7 +165,9 @@ class QueryPlannerAgent:
                 if not re.match(r"^(?:[a-z][a-z0-9+.-]{1,20}://|site:)", candidate, re.I):
                     candidate = re.sub(r"^[^:\r\n]{2,30}:\s*", "", candidate).strip()
                 try:
-                    validate_variant(query, candidate)
+                    # Syntax/numeric screening precedes semantic review. Model
+                    # aliases are merely candidates until that reviewer agrees.
+                    validate_variant(query, candidate, allow_identity_alias=True)
                 except ValueError as error:
                     self.rejected_variants.append({"query": candidate, "reason": str(error)})
                     continue
@@ -179,6 +187,7 @@ class QueryPlannerAgent:
                          "Accept only if it preserves the ORIGINAL product type, brand, model, quantity, size, color, "
                          "units, negation and other requested attributes. Translations and true synonyms are allowed. "
                          "Reject added constraints, broadened categories, narrowed ambiguous intent, new model names, "
+                         "A recognized abbreviation and its full name identify the same model; spelling it out is not a dropped identity. "
                          "dropped identities, audience qualifiers and accessory-for-product substitutions. "
                          "A broader parent class or merely related item is NOT equivalent. The brands_and_models list must "
                          "contain only exact brand/model/code text from the original, or be empty when none exists. "
@@ -191,7 +200,10 @@ class QueryPlannerAgent:
                     self.last_reviews["reviews"].append(review.model_dump())
                     if review.index != index:
                         raise ValueError("Rewrite reviewer returned the wrong index")
-                    anchors = [anchor for anchor in review.brands_and_models
+                    # Anchor quotes come from the original planner input. The
+                    # reviewer may spell the identity out in its explanation;
+                    # its explicit equivalence decision governs that alias.
+                    anchors = [anchor for anchor in plan.anchors
                                if anchor.strip().casefold() not in {"none", "null", "n/a", "unknown"}]
                     validate_anchors(query, anchors)
                     if review.preserves_intent and not review.added_constraints and not review.dropped_constraints:
@@ -300,8 +312,9 @@ class StoreDiscoveryAgent:
                 continue
             if len(stores) >= store_limit:
                 break
-            if quick and stores:
-                break
+            # A handful of domains from one provider response is not enough
+            # coverage. Continue the bounded query plan until the store target
+            # is filled, including for Quick searches.
         stores = stores[:store_limit]
         for store in stores:
             pages = [result for result in results if _registrable_domain(result["url"]) == store["domain"]]
@@ -324,7 +337,7 @@ class SemanticValidationAgent:
         """Raw structured classification; no silent fallback in model benchmarks."""
         self.last_reasons = {}
         self.last_canonical = {}
-        llm = ChatOllama(**model_options(model, num_predict=256))
+        llm = ChatOllama(**model_options(model, num_predict=384))
         validator = llm.with_structured_output(ProductMatch, method="json_schema")
         assessments = {}
         for product in products:
@@ -332,7 +345,13 @@ class SemanticValidationAgent:
                 [
                     (
                         "system",
-                        "Does this product title belong in search results for the query? "
+                        "Classify the actual object being sold against the shopper's requested object. "
+                        "First fill requested_kind and offered_kind, then relationship, then decide relevant. "
+                        "A brand/model abbreviation usually requests that device itself. "
+                        "A title may mention a model only as compatibility, platform, spare part or accessory; "
+                        "that is NOT the requested object. Shared keywords alone do not establish relevance. "
+                        "Use requested_product only if the sold object is what the shopper requested. "
+                        "Set relevant false for any other relationship. Keep reason under 30 words. "
                         "Extra title details are allowed, but every explicit identity, quantity, size, "
                         "colour, unit and negation constraint must be respected. Recognize translations "
                         "and equivalent units. Reject wrong models, guides, "
@@ -344,7 +363,7 @@ class SemanticValidationAgent:
                         "Never use a broad parent category or neighbouring product as the canonical identity. "
                         "Return null when uncertain.",
                     ),
-                    ("human", json.dumps({"query": query, "accepted_query_variants": list(variants),
+                    ("human", json.dumps({"query": query, "accepted_query_variants": [v for v in variants if v.casefold() != query.casefold()],
                                            "title": product["title"]}, ensure_ascii=False)),
                 ]
             )
@@ -352,7 +371,7 @@ class SemanticValidationAgent:
             self.last_reasons[product["url"]] = response.reason
             self.last_canonical[product["url"]] = getattr(response, "canonical_product", None)
             assessments[product["url"]] = (
-                response.relevant,
+                response.relevant and response.relationship == "requested_product",
                 self._deterministic_assessment(product, region)[1],
                 0.5,
             )
@@ -404,6 +423,9 @@ class SemanticValidationAgent:
             assessments = self.assess(products, query, region, variants=variants)
         except Exception:
             used_fallback = True
+
+        if used_fallback and settings.use_semantic_validation:
+            return [], ["Local semantic validator was unavailable or returned invalid output; candidates could not be verified."]
 
         accepted: list[dict[str, Any]] = []
         rejected = 0

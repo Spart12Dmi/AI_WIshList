@@ -88,8 +88,8 @@ def test_age_spelling_also_matches_search_query():
 
 
 def test_reviewed_canonical_identity_groups_offer_dimensions_for_comparison(client):
-    first = save_offer(phone_offer("Apple iPhone 17 Pro 256GB Silver", canonical_product="Apple iPhone 17 Pro 256GB Silver"), "czechia")
-    second = save_offer(phone_offer("Apple iPhone 17 Pro 256GB Blue", "second", 28990, canonical_product="Apple iPhone 17 Pro 256GB Blue"), "czechia")
+    first = save_offer(phone_offer("Apple iPhone 17 Pro 256GB Silver", color="Silver", canonical_product="Apple iPhone 17 Pro 256GB Silver"), "czechia")
+    second = save_offer(phone_offer("Apple iPhone 17 Pro 256GB Blue", "second", 28990, color="Blue", canonical_product="Apple iPhone 17 Pro 256GB Blue"), "czechia")
     third = save_offer(phone_offer("Apple iPhone 17 Pro 512GB Orange", "third", 33990, canonical_product="Apple iPhone 17 Pro 512GB"), "czechia")
 
     assert first["id"] == second["id"] != third["id"]
@@ -112,8 +112,8 @@ def test_canonical_identity_cannot_drop_requested_numbers(client):
 
 
 def test_canonical_grouping_is_not_tied_to_a_product_category(client):
-    first = save_offer(phone_offer("Northwind brewer black", canonical_product="Northwind brewer black"), "czechia")
-    second = save_offer(phone_offer("Northwind brewer silver", "second", 1100, canonical_product="Northwind brewer silver"), "czechia")
+    first = save_offer(phone_offer("Northwind brewer black", color="black", canonical_product="Northwind brewer black"), "czechia")
+    second = save_offer(phone_offer("Northwind brewer silver", "second", 1100, color="silver", canonical_product="Northwind brewer silver"), "czechia")
     assert first["id"] == second["id"]
     assert second["offer_count"] == 2
 
@@ -121,4 +121,11 @@ def test_canonical_grouping_is_not_tied_to_a_product_category(client):
 def test_similar_canonical_labels_with_different_numeric_variants_stay_separate(client):
     first = save_offer(phone_offer("Northwind brewer 256 black", canonical_product="Northwind brewer 256 black"), "czechia")
     second = save_offer(phone_offer("Northwind brewer 512 silver", "second", 1100, canonical_product="Northwind brewer 512 silver"), "czechia")
+    assert first["id"] != second["id"]
+
+
+@pytest.mark.parametrize("title", ["Northwind model 90 Pro", "Northwind model 90 Drift SC", "Northwind model 90 Plus"])
+def test_shared_words_cannot_merge_different_editions(client, title):
+    first = save_offer(phone_offer("Northwind model 90", canonical_product="Northwind model 90"), "czechia")
+    second = save_offer(phone_offer(title, "second", canonical_product=title), "czechia")
     assert first["id"] != second["id"]

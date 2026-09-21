@@ -21,7 +21,7 @@ def validate_anchors(original, anchors):
             raise ValueError("An identity anchor must be quoted from the original request")
 
 
-def validate_variant(original, planned, anchors=()):
+def validate_variant(original, planned, anchors=(), *, allow_identity_alias=False):
     if not isinstance(planned, str) or not 2 <= len(planned.strip()) <= 200 or len(planned.split()) > 16:
         raise ValueError("Query plan has invalid length")
     if re.search(r"(?:https?://|\bsite:|[\r\n]|[:;])", planned, re.I):
@@ -32,11 +32,17 @@ def validate_variant(original, planned, anchors=()):
         # ``2 m`` to ``200 cm`` while still preserving the physical constraint.
         return {token for token in words(text) if any(char.isdigit() for char in token)}
     if numbers(original) != numbers(planned):
-        raise ValueError("Query plan changed numeric constraints")
+        # An independently reviewed expansion can spell out an abbreviated
+        # model (letters change, digits do not). Never allow added/dropped
+        # numeric constraints, capacities or quantities through this path.
+        source_digits = sorted(part for token in numbers(original) for part in re.findall(r"\d+(?:\.\d+)?", token))
+        target_digits = sorted(part for token in numbers(planned) for part in re.findall(r"\d+(?:\.\d+)?", token))
+        if not allow_identity_alias or source_digits != target_digits:
+            raise ValueError("Query plan changed numeric constraints")
     validate_anchors(original, anchors)
     target = " " + " ".join(tokens(planned)) + " "
     for anchor in anchors:
-        if " " + " ".join(tokens(anchor)) + " " not in target:
+        if not allow_identity_alias and " " + " ".join(tokens(anchor)) + " " not in target:
             raise ValueError("Query plan changed an identity anchor")
     # ``numbers`` above already compares normalized model/unit tokens. Do not
     # compare raw mixed tokens here: a valid unit translation such as ``2 m``
@@ -48,7 +54,7 @@ def search_variants(query, region, proposed=(), *, anchors=(), reviewed=False):
     variants = [query.strip()]
     for candidate in proposed:
         try:
-            validate_variant(query, candidate, anchors)
+            validate_variant(query, candidate, anchors, allow_identity_alias=reviewed)
         except (ValueError, TypeError):
             continue
         # Before the independent reviewer runs, do not treat a proposed

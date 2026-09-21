@@ -28,7 +28,7 @@ log = logging.getLogger(__name__)
 _search_cache: OrderedDict = OrderedDict()
 _search_cache_lock = threading.Lock()
 NON_PRODUCT_PAGE_PATTERNS = re.compile(
-    r"\b(price guide|pricing guide|complete price|whisk(?:e)?y prices|review|blog|article|news|recipe|history|top \d+|best \d+)\b",
+    r"\b(price guide|pricing guide|complete price|review|blog|article|news|recipe|history|top \d+|best \d+)\b",
     re.IGNORECASE,
 )
 # Classified listings often publish a nominal ``1`` amount while asking
@@ -414,7 +414,14 @@ def parse_product_offers(html: str, page_url: str, discovered_title: str = "") -
         except (ValueError, TypeError):
             continue
     offers = []
+    expanded_items = []
     for item in items[:30]:
+        variants = item.get("offers")
+        if isinstance(variants, list):
+            expanded_items.extend({**item, "offers": variant} for variant in variants[:30] if isinstance(variant, dict))
+        else:
+            expanded_items.append(item)
+    for item in expanded_items[:90]:
         target = _first_string(item.get("url"))
         # ItemList products may point to category#product_1 while their actual
         # Offer points to a PDP. Bind URL to the SAME Offer whose price we read.
@@ -476,6 +483,13 @@ def parse_product_offers(html: str, page_url: str, discovered_title: str = "") -
     combined = {offer["url"]: offer for offer in microdata}
     for offer in offers:
         combined[offer["url"]] = offer
+    editorial = (_meta_content(soup, "og:type") or "").casefold() in {"article", "newsarticle", "blogposting", "blog"}
+    editorial = editorial or bool(re.search(r"/(?:articles?|news|blog|clanek|clanky|reviews?)/", urlsplit(page_url).path, re.I))
+    if editorial:
+        # An article may link a genuine product, but its own URL cannot be a
+        # purchasable offer, even when its template embeds Product JSON-LD.
+        combined = {url: offer for url, offer in combined.items()
+                    if canonical_offer_url(url) != canonical_offer_url(page_url)}
     return list(combined.values())
 
 
@@ -495,12 +509,12 @@ def _microdata_offers(soup: BeautifulSoup, page_url: str) -> list[dict[str, Any]
         price_node = _owned_property(scope, '[itemprop="price"]', {"Offer", "PriceSpecification"})
         currency_node = _owned_property(scope, '[itemprop="priceCurrency"]', {"Offer", "PriceSpecification"})
         amount = parse_price(
-            offer.get("data-micro-price") if offer else price_node.get("content") if price_node else None
+            offer.get("data-micro-price") if offer else (price_node.get("content") or price_node.get_text(" ", strip=True)) if price_node else None
         )
         currency = _normalise_currency(
             offer.get("data-micro-price-currency")
             if offer
-            else currency_node.get("content")
+            else (currency_node.get("content") or currency_node.get_text(" ", strip=True))
             if currency_node
             else None
         )
@@ -579,6 +593,14 @@ def extract_offers(url: str, discovered_title: str = "", query: str = "", querie
     """Fetch explicit product offers, including separately linked category items."""
     html, final_url = _fetch_product_html(url)
     offers = parse_product_offers(html, final_url, discovered_title)
+    # Server-rendered prices do not need Chromium. Use the same guarded DOM
+    # parser here so scarce browser slots remain available for JS-only pages.
+    from app.tools.browser_search import parse_rendered_product_page
+
+    if not offers:
+        rendered = parse_rendered_product_page(html, final_url, discovered_title, query, queries)
+        if rendered.get("accepted"):
+            offers.append(rendered)
     if offers and (not query or any(matches_query(query, item["title"], queries) for item in offers)):
         return offers
     # Search engines frequently return categories. Follow only bounded, explicit
@@ -586,7 +608,12 @@ def extract_offers(url: str, discovered_title: str = "", query: str = "", querie
     for candidate in parse_catalog_links(html, final_url, query, queries):
         try:
             item_html, item_url = _fetch_product_html(candidate["url"])
-            offers.extend(parse_product_offers(item_html, item_url, candidate["title"]))
+            items = parse_product_offers(item_html, item_url, candidate["title"])
+            if not items:
+                rendered = parse_rendered_product_page(item_html, item_url, candidate["title"], query, queries)
+                if rendered.get("accepted"):
+                    items.append(rendered)
+            offers.extend(items)
         except (httpx.HTTPError, ValueError):
             continue
     return offers
@@ -600,13 +627,20 @@ def parse_catalog_links(html: str, page_url: str, query: str = "", queries: list
         ".product-item-link, .product-title a, a.product-title, .card__heading a, "
         ".product h2 a, .product h3 a, .product-card a[href]"
     )
-    for anchor in soup.select(selectors):
+    # Prefer marked product cards, then discover title/image links in unknown
+    # storefront layouts. The destination still has to supply its own offer.
+    anchors = list(soup.select(selectors))
+    anchors.extend(soup.select("h2 a[href], h3 a[href], a[href]:has(img), a[itemprop='url']"))
+    for anchor in anchors:
         target = urljoin(page_url, str(anchor.get("href") or ""))
         if target in seen or urlsplit(target).hostname != urlsplit(page_url).hostname:
             continue
         if re.search(r"(?:cart|basket|checkout|wishlist|login|add-to|remove)[/?=\-]", target, re.I):
             continue
         title = anchor.get_text(" ", strip=True) or str(anchor.get("title") or "")
+        if not title:
+            image = anchor.find("img", alt=True)
+            title = str(image.get("alt", "")) if image else ""
         if len(title) < 2 or (query and not matches_query(query, title, queries)) or not is_public_http_url(target):
             continue
         links.append({"url": target, "title": title[:500]})

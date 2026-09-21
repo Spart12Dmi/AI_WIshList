@@ -68,6 +68,26 @@ def test_model_cannot_invent_anchor():
         validate_anchors("Acme device", ["AnotherBrand"])
 
 
+def test_model_review_can_expand_abbreviation_without_an_alias_table(client, monkeypatch):
+    plan = QueryPlan(search_query="PS5", alternatives=["PlayStation 5"], anchors=["PS5"])
+    fake_model(monkeypatch, plan, ["PlayStation 5"])
+    planner = agents.QueryPlannerAgent()
+    planner.run("PS5", get_region("czechia"))
+    assert planner.variants == ["PS5", "PlayStation 5"]
+    assert matches_query("PS5", "Sony PlayStation 5 Slim", planner.variants)
+    assert search_variants("PS5", get_region("czechia"), ["PlayStation 5"]) == ["PS5"]
+    with pytest.raises(ValueError):
+        validate_variant("PS5", "PlayStation 6", allow_identity_alias=True)
+
+
+def test_unapproved_alias_stays_out_of_retrieval(client, monkeypatch):
+    plan = QueryPlan(search_query="Acme X1", alternatives=["Other X1"], anchors=["Acme", "X1"])
+    fake_model(monkeypatch, plan, [])
+    planner = agents.QueryPlannerAgent()
+    planner.run("Acme X1", get_region("czechia"))
+    assert planner.variants == ["Acme X1"]
+
+
 def test_failed_semantic_review_falls_back_explicitly(client, monkeypatch):
     fake_model(monkeypatch, QueryPlan(search_query="Hario ceramic teapot", alternatives=["Hario teapot"], anchors=["Hario"]), [])
     planner = agents.QueryPlannerAgent()

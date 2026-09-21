@@ -7,6 +7,7 @@ from urllib.parse import parse_qs, quote_plus, unquote, urljoin, urlsplit
 from bs4 import BeautifulSoup
 from langchain_core.tools import tool
 from playwright.sync_api import Browser, Page, Route, sync_playwright
+from playwright.sync_api import TimeoutError as BrowserTimeout
 
 from app.config import get_settings
 from app.query_expansion import matches_query
@@ -124,7 +125,6 @@ def parse_rendered_product_page(
             for value in (
                 heading.get_text(" ", strip=True) if heading else "",
                 _meta_content(soup, "og:title", "twitter:title") or "",
-                discovered_title,
                 soup.title.get_text(" ", strip=True) if soup.title else "",
             )
             if value and value.strip()
@@ -134,10 +134,14 @@ def parse_rendered_product_page(
     if not title or NON_PRODUCT_PAGE_PATTERNS.search(title):
         return {"accepted": False, "reason": "The rendered page did not expose a product heading."}
     page_type = (_meta_content(soup, "og:type") or "").casefold()
-    if page_type in {"article", "newsarticle", "blogposting", "blog"}:
+    if page_type in {"article", "newsarticle", "blogposting", "blog"} or re.search(
+        r"/(?:articles?|news|blog|clanek|clanky|reviews?)/", urlsplit(page_url).path, re.I
+    ):
         return {"accepted": False, "reason": "The rendered page identifies itself as editorial content."}
     if query and not matches_query(query, title, queries):
         return {"accepted": False, "reason": "The rendered product heading did not match the query."}
+    if re.search(r"/(?:categories|category|collections?|inzeraty|search|hledat)/", urlsplit(page_url).path, re.I):
+        return {"accepted": False, "reason": "A catalogue page needs separately linked product offers."}
 
     expected = next(
         (set(profile.preferred_currencies) for profile in REGIONS.values() if profile.search_region == region),
@@ -182,7 +186,7 @@ def parse_rendered_product_page(
         node_text = " ".join(node.get_text(" ", strip=True).split())
         if not node_text or len(node_text) > 320:
             continue
-        match = price_label.search(node_text)
+        match = price_label.match(node_text)
         if match:
             labelled_nodes.append((node, node_text[match.end() :].strip()))
     labelled_nodes.sort(key=lambda item: len(item[0].get_text(" ", strip=True)))
@@ -194,13 +198,40 @@ def parse_rendered_product_page(
         if id(node) in seen_nodes:
             continue
         seen_nodes.add(id(node))
+        # Prices in a recommendation, delivery widget or struck-out ancestor
+        # must never be attached to the primary product's heading.
+        context_nodes = [node, *list(node.parents)]
+        if any(
+            ancestor.name in {"del", "s", "nav", "footer"}
+            or ancestor.has_attr("hidden")
+            or str(ancestor.get("aria-hidden", "")).lower() == "true"
+            or re.search(
+                r"(?:related|recommend|upsell|cross.?sell|shipping|delivery|installment|monthly|old.price|price.old|original.price)",
+                " ".join(ancestor.get("class", [])) + " " + str(ancestor.get("id", "")), re.I,
+            )
+            for ancestor in context_nodes
+        ):
+            continue
+        if any(
+            ancestor.name == "a" and ancestor.get("href")
+            and urljoin(page_url, ancestor["href"]).split("#")[0] != page_url.split("#")[0]
+            for ancestor in context_nodes
+        ):
+            continue
         classes = " ".join(node.get("class", [])) + " " + str(node.get("id", ""))
         if re.search(r"(?:old|was|before|shipping|delivery|installment|monthly|unit)[-_ ]?price", classes, re.I):
             continue
         text = labelled_tail or " ".join(node.get_text(" ", strip=True).split())
         if not text:
             continue
-        price = parse_price(node.get("content") or node.get("data-price") or text)
+        raw_price = node.get("content") or node.get("data-price") or node.get("data-product-price") or text
+        # Do not concatenate several prices, model numbers or discount values
+        # from a broad container into a single invented amount.
+        normalized = str(raw_price).replace("\u00a0", " ").replace("\u202f", " ")
+        amounts = re.findall(r"(?<!\d)(?:\d{1,3}(?:[.,\s]\d{3})+|\d+)(?:[.,]\d{1,2})?(?!\d)", normalized)
+        if len(amounts) != 1 or "%" in normalized:
+            continue
+        price = parse_price(raw_price)
         if price is None:
             continue
         # Currency is often rendered in a sibling span (for example an
@@ -261,15 +292,25 @@ def _load_product_page(
     page: Page = browser.new_page(viewport={"width": 1440, "height": 1100}, service_workers="block")
     page.route("**/*", _allow_only_public_requests)
     try:
-        page.goto(url, wait_until="domcontentloaded", timeout=settings.browser_navigation_timeout_ms)
+        try:
+            response = page.goto(url, wait_until="domcontentloaded", timeout=settings.browser_navigation_timeout_ms)
+        except BrowserTimeout:
+            # A slow secondary resource can time out navigation after the
+            # product DOM arrived. Inspect it instead of discarding it.
+            response = None
         page.wait_for_timeout(settings.browser_render_wait_ms)
         final_url = page.url
         if not is_public_http_url(final_url):
             return {"accepted": False, "reason": "The page redirected to a non-public address."}
         html = page.content()
+        if response is not None and response.status >= 400:
+            return {"accepted": False, "offers": [], "url": final_url,
+                    "reason": f"browser_http_{response.status}"}
         offers = parse_product_offers(html, final_url, discovered_title)
+        reason = "no_product_price"
         if not offers:
             rendered = parse_rendered_product_page(html, final_url, discovered_title, query, queries, region)
+            reason = rendered.get("reason", reason)
             if rendered.get("accepted"):
                 offers.append(rendered)
         if not offers or (query and not any(matches_query(query, item["title"], queries) for item in offers)):
@@ -293,7 +334,7 @@ def _load_product_page(
                         offers.extend(candidate_offers)
                 except Exception:
                     continue
-        return {"accepted": bool(offers), "offers": offers}
+        return {"accepted": bool(offers), "offers": offers, "url": final_url, "reason": reason if not offers else None}
     finally:
         # Drain intercepted requests before closing the page/context.
         page.unroute_all(behavior="wait")
@@ -320,8 +361,9 @@ def iter_browser_product_extractions(candidates: list[dict[str, str]]) -> Iterat
                         yield from result["offers"]
                     else:
                         yield result
-                except Exception:
-                    yield {"accepted": False, "reason": "Chromium could not extract this product page."}
+                except Exception as error:
+                    yield {"accepted": False, "url": candidate["url"],
+                           "reason": "browser_" + type(error).__name__}
         finally:
             browser.close()
 

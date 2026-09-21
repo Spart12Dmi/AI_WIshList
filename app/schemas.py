@@ -146,8 +146,13 @@ class ProductMatch(BaseModel):
     """One semantic decision; source URLs are retained by code, never regenerated."""
 
     model_config = ConfigDict(extra="forbid", strict=True)
-    relevant: bool
+    requested_kind: str = Field(default="", max_length=80, description="What kind of item is the shopper buying? Infer the object behind brand/model shorthand.")
+    offered_kind: str = Field(default="", max_length=80, description="What object is actually sold in this listing? A compatibility reference does not identify that object.")
+    relationship: Literal["requested_product", "compatible_item", "replacement_part", "different_product", "uncertain"] = Field(
+        default="requested_product", description="Use requested_product only when the actual item sold is the requested kind. Accessories/parts are requested_product only if the query asks for them."
+    )
     reason: str = Field(min_length=1, max_length=240)
+    relevant: bool
     canonical_product: str | None = Field(
         default=None,
         min_length=2,

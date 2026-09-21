@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any, TypedDict
 from urllib.parse import urlsplit
 
+import httpx
 from langgraph.config import get_stream_writer
 from langgraph.graph import END, START, StateGraph
 
@@ -147,7 +148,6 @@ def search_and_validate(state):
     # zero merely because its first two candidates were blocked.  Keep a
     # bounded per-search budget, but allow one attempt per discovered store.
     browser_budget = min(settings.browser_candidate_limit, 8) if quick else settings.browser_candidate_limit
-    budget_lock = threading.Lock()
     warnings = list(state["warnings"])
     products = {}
     variants = state.get("query_variants", [])
@@ -188,9 +188,10 @@ def search_and_validate(state):
                 return
 
     def worker(store):
-        nonlocal browser_budget
         domain = store["domain"]
         extracted = 0
+        browser_remaining = browser_allowances.get(domain, 0)
+        failures = []
         progress = {"matched": 0}
         try:
             if stop.is_set():
@@ -199,29 +200,28 @@ def search_and_validate(state):
             for page in candidate_pages(store, progress):
                 if stop.is_set() or time.monotonic() > deadline:
                     break
+                http_status = None
                 try:
                     offers = extract_offers.invoke(
                         {"url": page["url"], "discovered_title": page["title"], "query": state["query"], "queries": variants}
                     )
                 except Exception as exc:
                     log.info("HTTP extraction failed for %s: %s", domain, type(exc).__name__)
+                    if isinstance(exc, httpx.HTTPStatusError):
+                        http_status = exc.response.status_code
+                    failures.append(f"HTTP {http_status}" if http_status else type(exc).__name__)
                     offers = []
-                use_browser = False
-                with budget_lock:
-                    if (
-                        not any(matches_query(state["query"], item.get("title", ""), variants) for item in offers)
-                        and settings.use_browser_fallback
-                        and browser_budget > 0
-                    ):
-                        browser_budget -= 1
-                        use_browser = True
+                use_browser = (
+                    not any(matches_query(state["query"], item.get("title", ""), variants) for item in offers)
+                    and settings.use_browser_fallback and browser_remaining > 0
+                    and http_status not in {404, 410}
+                )
                 if use_browser and not stop.is_set() and time.monotonic() < deadline:
                     with _browser_slots:
                         if not stop.is_set() and time.monotonic() < deadline:
                             try:
-                                offers = [
-                                    p
-                                    for p in iter_browser_product_extractions(
+                                browser_remaining -= 1
+                                observations = list(iter_browser_product_extractions(
                                         [
                                             {
                                                 **page,
@@ -230,9 +230,9 @@ def search_and_validate(state):
                                                 "region": region.search_region,
                                             }
                                         ]
-                                    )
-                                    if p.get("accepted")
-                                ]
+                                    ))
+                                offers = [p for p in observations if p.get("accepted")]
+                                failures.extend(p.get("reason", "no_product_price") for p in observations if not p.get("accepted"))
                             except Exception as exc:
                                 events.put(
                                     (
@@ -242,6 +242,9 @@ def search_and_validate(state):
                                         },
                                     )
                                 )
+                if state.get("evaluation_trace"):
+                    events.put(("extraction", {"domain": domain, "url": page["url"],
+                                              "offers": len(offers), "failures": list(dict.fromkeys(failures))}))
                 for offer in offers:
                     if not stop.is_set():
                         if matches_query(state["query"], offer.get("title", ""), variants):
@@ -253,7 +256,11 @@ def search_and_validate(state):
                     "store",
                     {
                         "domain": domain,
-                        "status": f"{extracted} candidate offers" if extracted else "no readable offers",
+                        "status": f"{extracted} candidate offers" if extracted else (
+                            "access blocked (HTTP 403)" if "browser_http_403" in failures
+                            else "time budget reached" if time.monotonic() >= deadline
+                            else "no readable offers"
+                        ),
                     },
                 )
             )
@@ -268,6 +275,12 @@ def search_and_validate(state):
     stores = state["stores"]
     if not stores:
         return {"products": [], "warnings": warnings}
+    # Reserve attempts fairly; the fastest failing worker must not exhaust
+    # the browser budget before other stores receive their first attempt.
+    browser_allowances = {
+        store["domain"]: browser_budget // len(stores) + (index < browser_budget % len(stores))
+        for index, store in enumerate(stores)
+    }
     emit("status", message=f"Searching {len(stores)} stores; matched products appear as they finish...")
     seen = {}
     completed = 0
@@ -281,7 +294,9 @@ def search_and_validate(state):
                 continue
             if kind == "worker_done":
                 completed += 1
-            elif kind == "candidate" and not stop.is_set() and time.monotonic() < deadline:
+            elif kind == "candidate" and not stop.is_set():
+                # The deadline stops new network work, not validation of
+                # observations already collected and queued before it.
                 try:
                     offer = ProductOffer.model_validate(payload).model_dump()
                     quality = 1 if not offer["source_url"] or offer["source_url"] == offer["url"] else 0
@@ -341,6 +356,8 @@ def search_and_validate(state):
                 emit("warning", **payload)
             elif kind == "store":
                 emit("store", **payload)
+            elif kind == "extraction":
+                emit("extraction", **payload)
     if time.monotonic() > deadline:
         warnings.append("Search time budget reached; showing the offers collected so far.")
     return {
